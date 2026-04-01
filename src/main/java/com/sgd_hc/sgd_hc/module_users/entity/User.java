@@ -30,7 +30,13 @@ public class User implements UserDetails {
     private Long id;
 
     @Column(nullable = false, unique = true, length = 10)
-    private String ci;
+    private String username;
+
+    @Column(name = "document_type", length = 20)
+    private String documentType;
+
+    @Column(name = "document_number", length = 50)
+    private String documentNumber;
 
     @Column(nullable = false, unique = true, length = 50)
     private String email;
@@ -43,6 +49,11 @@ public class User implements UserDetails {
 
     @Column(nullable = false, length = 255)
     private String password;
+
+    private String phone;
+
+    @Column(nullable = false)
+    private String gender;
 
     @Builder.Default 
     @Column(columnDefinition = "BOOLEAN DEFAULT true")
@@ -71,7 +82,7 @@ public class User implements UserDetails {
 
     @Override
     public String getUsername() {
-        return this.email;
+        return this.username;
     }
 
     @Override
