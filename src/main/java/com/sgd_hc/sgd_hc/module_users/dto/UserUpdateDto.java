@@ -3,13 +3,14 @@ package com.sgd_hc.sgd_hc.module_users.dto;
 import java.util.Set;
 
 public record UserUpdateDto(
-    String ci,
-    String email,
-    String firstName,
-    String lastName,
-    String password,
-    Boolean isActive,
-    Set<Long> rolesIds
+        String documentType,
+        String documentNumber,
+        String firstName,
+        String lastName,
+        String password,
+        String phone,
+        Boolean isActive,
+        Set<Long> rolesIds
 ) {
 
 }
