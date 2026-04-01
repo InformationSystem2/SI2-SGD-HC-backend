@@ -3,6 +3,7 @@ package com.sgd_hc.sgd_hc.module_users.service;
 import java.util.HashSet;
 import java.util.Set;
 
+import com.sgd_hc.sgd_hc.security.config.tenant.TenantContext;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -38,8 +39,9 @@ public class UserService {
      */
    @Transactional
     public UserResponseDto createUser(UserCreateDto dto) {
-        if (userRepository.existsByCi(dto.ci()))
-            throw new IllegalArgumentException("CI already exists");
+
+        /*if (userRepository.existsByCi(dto.ci()))
+            throw new IllegalArgumentException("CI already exists");*/
 
         if (userRepository.existsByEmail(dto.email()))
             throw new IllegalArgumentException("Email already exists");
@@ -52,6 +54,7 @@ public class UserService {
 
         // Convertir el DTO a entidad, asignando los roles obtenidos
         User user = userMapper.toEntity(dto, roles);
+        user.setUsername(generateUsername());
         
         // Guardar el nuevo usuario en la base de datos y convertirlo a DTO de respuesta
         User savedUser = userRepository.save(user);
@@ -66,16 +69,6 @@ public class UserService {
         return userMapper.toResponseDto(
                 userRepository.findById(id)
                         .orElseThrow(() -> new IllegalArgumentException("User not found with id: " + id)));
-    }
-
-    /**
-     * Busca un usuario por su Cédula de Identidad (CI).
-     */
-    @Transactional(readOnly = true)
-    public UserResponseDto getUserByCi(String ci) {
-        return userMapper.toResponseDto(
-                userRepository.findByCi(ci)
-                        .orElseThrow(() -> new IllegalArgumentException("User not found with CI: " + ci)));
     }
 
     /**
@@ -111,13 +104,6 @@ public class UserService {
         User existingUser = userRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("User not found with id: " + id));
 
-        if (!existingUser.getCi().equals(dto.ci()) && userRepository.existsByCi(dto.ci())) {
-            throw new IllegalArgumentException("CI already exists");
-        }
-
-        if (!existingUser.getEmail().equals(dto.email()) && userRepository.existsByEmail(dto.email())) {
-            throw new IllegalArgumentException("Email already exists");
-        }
 
         // Obtener los roles a partir de los IDs proporcionados en el DTO
         Set<Role> roles = null;
@@ -142,5 +128,28 @@ public class UserService {
                 .orElseThrow(() -> new IllegalArgumentException("User not found with id: " + id));
         user.setIsActive(false);
         userRepository.save(user);
+    }
+
+
+    private String generateUsername() {
+        String currentTenant = TenantContext.getCurrentTenant();
+
+        String prefijo = "DEF";
+
+        if ("clinica-a".equals(currentTenant)) {
+            prefijo = "CLA";
+        } else if ("clinica-b".equals(currentTenant)) {
+            prefijo = "CLB";
+        }
+
+        String generatedCode;
+        do {
+            int randomNumber = (int) (Math.random() * 9000) + 1000;
+
+            generatedCode = prefijo + "-" + randomNumber;
+
+        } while (userRepository.existsByUsername(generatedCode));
+
+        return generatedCode;
     }
 }
