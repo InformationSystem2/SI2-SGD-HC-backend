@@ -20,7 +20,7 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 
 @RestController
-@RequestMapping("/users")
+@RequestMapping("/api/module_users/users")
 @RequiredArgsConstructor
 public class UserController {
     private final UserService userService;
@@ -34,7 +34,7 @@ public class UserController {
     public ResponseEntity<Iterable<UserResponseDto>> getAllUser() {
         return ResponseEntity.ok(userService.getAllUsers());
     }
-    
+
     @GetMapping("/{id}")
     public ResponseEntity<UserResponseDto> getUserById(@PathVariable Long id) {
         return ResponseEntity.ok(userService.getUserById(id));
@@ -48,7 +48,7 @@ public class UserController {
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> userDelete(@PathVariable Long id) {
         userService.deleteUser(id);
-        return ResponseEntity.noContent().build(); 
+        return ResponseEntity.noContent().build();
     }
-    
+
 }
