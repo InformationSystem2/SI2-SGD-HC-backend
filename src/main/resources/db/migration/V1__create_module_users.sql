@@ -11,7 +11,8 @@ CREATE TABLE users (
     last_name VARCHAR(100) NOT NULL,
     password VARCHAR(255) NOT NULL,
     is_active BOOLEAN NOT NULL DEFAULT TRUE,
-    phone VARCHAR(20)
+    phone VARCHAR(20),
+    gender VARCHAR(20) NOT NULL DEFAULT 'unknown'
 );
 
 CREATE TABLE IF NOT EXISTS roles (

@@ -28,7 +28,6 @@ public class UserMapper {
                 .email(dto.email())
                 .firstName(dto.firstName())
                 .lastName(dto.lastName())
-                .password(dto.password())
                 .phone(dto.phone())
                 .gender(dto.gender())
 
@@ -47,7 +46,6 @@ public class UserMapper {
         existingUser.setDocumentNumber(dto.documentNumber());
         existingUser.setFirstName(dto.firstName());
         existingUser.setLastName(dto.lastName());
-        existingUser.setPassword(dto.password());
         existingUser.setIsActive(dto.isActive());
 
         if (roles != null)
@@ -65,21 +63,22 @@ public class UserMapper {
     public UserResponseDto toResponseDto(User entity) {
         Set<Long> roleIds = entity.getRoles() != null
                 ? entity.getRoles().stream()
-                        .map(Role::getId)
-                        .collect(Collectors.toSet())
+                  .map(Role::getId)
+                  .collect(Collectors.toSet())
                 : new HashSet<>();
 
         return new UserResponseDto(
                 entity.getId(),
                 entity.getUsername(),
-                entity.getDocumentType(),
-                entity.getDocumentNumber(),
-                entity.getEmail(),
-                entity.getFirstName(),
-                entity.getLastName(),
-                entity.getPhone(),
-                entity.getIsActive(),
-                entity.getGender(),
-                roleIds);
+                entity.getEmail(),           // email
+                entity.getFirstName(),       // firstName
+                entity.getLastName(),        // lastName
+                entity.getPhone(),           // phone
+                entity.getDocumentType(),    // documentType
+                entity.getDocumentNumber(),  // documentNumber
+                entity.getGender(),        // Boolean isActive  ← ojo aquí
+                entity.getIsActive(),          // String gender     ← ojo aquí
+                roleIds
+        );
     }
 }

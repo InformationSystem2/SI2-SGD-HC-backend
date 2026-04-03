@@ -3,7 +3,7 @@ package com.sgd_hc.sgd_hc.module_users.service;
 import java.util.HashSet;
 import java.util.Set;
 
-import com.sgd_hc.sgd_hc.security.config.tenant.TenantContext;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -29,6 +29,7 @@ public class UserService {
     private final UserRepository userRepository;
     private final RoleRepository roleRepository; 
     private final UserMapper userMapper;
+    private final PasswordEncoder passwordEncoder;
 
     /**
      * Crea un nuevo usuario en el sistema a partir de un DTO.
@@ -55,6 +56,7 @@ public class UserService {
         // Convertir el DTO a entidad, asignando los roles obtenidos
         User user = userMapper.toEntity(dto, roles);
         user.setUsername(generateUsername());
+        user.setPassword(passwordEncoder.encode(dto.password()));
         
         // Guardar el nuevo usuario en la base de datos y convertirlo a DTO de respuesta
         User savedUser = userRepository.save(user);
@@ -132,15 +134,7 @@ public class UserService {
 
 
     private String generateUsername() {
-        String currentTenant = TenantContext.getCurrentTenant();
-
-        String prefijo = "DEF";
-
-        if ("clinica-a".equals(currentTenant)) {
-            prefijo = "CLA";
-        } else if ("clinica-b".equals(currentTenant)) {
-            prefijo = "CLB";
-        }
+        String prefijo = "USR";
 
         String generatedCode;
         do {

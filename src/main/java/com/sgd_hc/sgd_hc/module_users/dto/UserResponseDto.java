@@ -11,8 +11,8 @@ public record UserResponseDto(
         String phone,
         String documentType,
         String documentNumber,
-        Boolean gender,
-        String isActive,
+        String gender,
+        Boolean isActive,
         Set<Long> rolesIds
 ) {
 

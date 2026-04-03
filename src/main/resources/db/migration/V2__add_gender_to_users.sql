@@ -1,4 +1,2 @@
-ALTER TABLE users ADD COLUMN gender VARCHAR(20);
-
-UPDATE users SET gender = 'unknown' WHERE gender IS NULL;
-ALTER TABLE users ALTER COLUMN gender SET NOT NULL;
+-- This migration is now a no-op since gender was added to V1
+-- Kept for backwards compatibility
