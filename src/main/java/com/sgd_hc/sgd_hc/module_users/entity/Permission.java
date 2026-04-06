@@ -22,5 +22,22 @@ public class Permission {
     @Column(nullable = false, unique = true)
     private String name; 
 
+    @Column(nullable = false)
+    private String module;
+
+    @Column(nullable = false)
+    private String action;
+
     private String description;
+
+    @Builder.Default
+    @Column(nullable = false)
+    private Boolean active = true;
+
+    @PrePersist
+    protected void onCreate() {
+        if (this.active == null) {
+            this.active = true;
+        }
+    }
 }
