@@ -26,7 +26,6 @@ RUN addgroup -S spring && adduser -S spring -G spring
 USER spring
 
 # Copy layers from the stages above
-# Layers are copied in order from most stable to most volatile
 COPY --from=layers /extract/dependencies/ ./
 COPY --from=layers /extract/spring-boot-loader/ ./
 COPY --from=layers /extract/snapshot-dependencies/ ./
@@ -37,14 +36,24 @@ ENV JAVA_OPTS="-XX:+UseSerialGC -Xms256m -Xmx512m -XX:MaxRAMPercentage=75.0 -Dus
 ENV PORT=8080
 EXPOSE 8080
 
-# Railway Entrypoint: Logic to parse DATABASE_URL (PostgreSQL) into Spring properties
+# Entrypoint con depuración y server.address forzado
 ENTRYPOINT ["sh", "-c", " \
+    set -e; \
+    echo '=== Iniciando contenedor (Java 26) ==='; \
+    echo \"PORT: ${PORT:-8080}\"; \
     if [ -n \"$DATABASE_URL\" ]; then \
+        echo 'Parseando DATABASE_URL...'; \
         URL_WITHOUT_PROTO=\"${DATABASE_URL#*://}\"; \
         DB_CREDS=\"${URL_WITHOUT_PROTO%@*}\"; \
         HOST_DB=\"${URL_WITHOUT_PROTO#*@}\"; \
         export DB_URL=\"jdbc:postgresql://${HOST_DB%/*}/${HOST_DB##*/}\"; \
         export DB_USERNAME=\"${DB_CREDS%:*}\"; \
         export DB_PASSWORD=\"${DB_CREDS#*:}\"; \
+        echo \"DB_URL: $DB_URL\"; \
+        echo \"DB_USERNAME: $DB_USERNAME\"; \
+        echo \"DB_PASSWORD: [OCULTA]\"; \
+    else \
+        echo 'ADVERTENCIA: DATABASE_URL no está definida.'; \
     fi; \
-    exec java $JAVA_OPTS -Dserver.port=${PORT:-8080} org.springframework.boot.loader.launch.JarLauncher"]
+    echo 'Iniciando aplicación Spring Boot...'; \
+    exec java $JAVA_OPTS -Dserver.port=${PORT:-8080} -Dserver.address=0.0.0.0 org.springframework.boot.loader.launch.JarLauncher"]
