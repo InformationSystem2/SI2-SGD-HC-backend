@@ -4,9 +4,9 @@ import java.util.List;
 import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
 
 import com.sgd_hc.sgd_hc.module_users.entity.User;
-import org.springframework.data.jpa.repository.Query;
 
 public interface UserRepository extends JpaRepository<User, Long> {
     Optional<User> findByEmail(String email);
@@ -18,4 +18,7 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     Optional<User> findByDocumentNumber(String documentNumber);
     boolean existsByDocumentNumber(String documentNumber);
+
+    @Query("SELECT u FROM users u WHERE TYPE(u) = com.sgd_hc.sgd_hc.module_users.entity.User")
+    List<User> findAllRegularUsers();
 }

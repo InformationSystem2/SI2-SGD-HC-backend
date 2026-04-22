@@ -11,6 +11,10 @@ import lombok.Setter;
 import lombok.NoArgsConstructor;
 
 @Entity(name = "users")
+@Table(name = "users")
+@Inheritance(strategy = InheritanceType.JOINED)
+@DiscriminatorColumn(name = "type", discriminatorType = DiscriminatorType.STRING, length = 31)
+@DiscriminatorValue("USER")
 @Getter
 @Setter
 @Builder
@@ -48,15 +52,15 @@ public class User {
     @Column(nullable = false)
     private String gender;
 
-    @Builder.Default 
+    @Builder.Default
     @Column(columnDefinition = "BOOLEAN DEFAULT true")
-    private Boolean isActive = true; 
+    private Boolean isActive = true;
 
-    @Builder.Default 
+    @Builder.Default
     @ManyToMany(fetch = FetchType.LAZY, cascade = { CascadeType.PERSIST, CascadeType.MERGE })
     @JoinTable(
-        name = "role_user", 
-        joinColumns = @JoinColumn(name = "user_id"), 
+        name = "role_user",
+        joinColumns = @JoinColumn(name = "user_id"),
         inverseJoinColumns = @JoinColumn(name = "role_id")
     )
     private Set<Role> roles = new HashSet<>();
