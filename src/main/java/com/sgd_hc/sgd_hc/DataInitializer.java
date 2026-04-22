@@ -16,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 @Slf4j
@@ -36,66 +37,59 @@ public class DataInitializer implements ApplicationRunner {
         // 1. Crear Permisos por defecto
         Set<Permission> allPermissions = createDefaultPermissions();
         Set<Permission> limitedPermissions = new HashSet<>(allPermissions);
+        
         limitedPermissions.removeIf(p -> p.getName().endsWith("_DELETE"));
 
-        // 2. Manejo de Roles (Resiliente a PostgreSQL)
-        Role superuserRole = roleRepository.findByName("ROLE_SUPERUSER")
-                .or(() -> roleRepository.findAll().stream()
-                        .filter(r -> r.getName().equalsIgnoreCase("ROLE_SUPERUSER"))
-                        .findFirst())
-                .orElse(null);
+        // 2. Manejo de Roles 
+        Map<String, String> rolesToCreate = Map.of(
+                "ROLE_SUPERUSER", "Superusuario con acceso total",
+                "ROLE_ADMIN", "Administrador con restricciones de borrado",
+                "ROLE_MEDICO", "Personal médico del sistema",
+                "ROLE_ARCHIVO", "Encargado de archivo histórico",
+                "ROLE_DIRECTOR", "Director del hospital"
+        );
 
-        if (superuserRole == null) {
-            log.info(">>> ROLE_SUPERUSER no encontrado, intentando crear o migrar...");
-            superuserRole = roleRepository.findByName("ROLE_ADMIN").orElse(null);
-            if (superuserRole != null) {
-                log.info(">>> Migrando ROLE_ADMIN a ROLE_SUPERUSER...");
-                superuserRole.setName("ROLE_SUPERUSER");
-                superuserRole.setDescription("Superusuario con acceso total");
-            } else {
-                superuserRole = Role.builder()
-                        .name("ROLE_SUPERUSER")
-                        .description("Superusuario con acceso total")
+        for (Map.Entry<String, String> entry : rolesToCreate.entrySet()) {
+            String roleName = entry.getKey();
+            String roleDesc = entry.getValue();
+
+            Role role = roleRepository.findByName(roleName)
+                    .or(() -> roleRepository.findAll().stream()
+                            .filter(r -> r.getName().equalsIgnoreCase(roleName))
+                            .findFirst())
+                    .orElse(null);
+
+            if (role == null) {
+                log.info(">>> Rol {} no encontrado, creando...", roleName);
+                role = Role.builder()
+                        .name(roleName)
+                        .description(roleDesc)
                         .build();
+                try {
+                    role = roleRepository.saveAndFlush(role);
+                } catch (Exception e) {
+                    role = roleRepository.findAll().stream()
+                            .filter(r -> r.getName().equalsIgnoreCase(roleName))
+                            .findFirst().orElseThrow();
+                }
             }
-            try {
-                superuserRole = roleRepository.saveAndFlush(superuserRole);
-            } catch (Exception e) {
-                superuserRole = roleRepository.findAll().stream()
-                        .filter(r -> r.getName().equalsIgnoreCase("ROLE_SUPERUSER"))
-                        .findFirst().orElseThrow();
-            }
-        }
-        superuserRole.setPermissions(allPermissions);
-        superuserRole = roleRepository.saveAndFlush(superuserRole);
 
-        // 2.2 ROLE_ADMIN (Limitado)
-        Role adminRole = roleRepository.findByName("ROLE_ADMIN")
-                .or(() -> roleRepository.findAll().stream()
-                        .filter(r -> r.getName().equalsIgnoreCase("ROLE_ADMIN"))
-                        .findFirst())
-                .orElse(null);
-
-        if (adminRole == null) {
-            log.info(">>> ROLE_ADMIN no encontrado, creando...");
-            adminRole = Role.builder()
-                    .name("ROLE_ADMIN")
-                    .description("Administrador con restricciones de borrado")
-                    .build();
-            try {
-                adminRole = roleRepository.saveAndFlush(adminRole);
-            } catch (Exception e) {
-                adminRole = roleRepository.findAll().stream()
-                        .filter(r -> r.getName().equalsIgnoreCase("ROLE_ADMIN"))
-                        .findFirst().orElseThrow();
+            // Asignación de permisos específicos
+            if (roleName.equals("ROLE_SUPERUSER")) {
+                role.setPermissions(allPermissions);
+                roleRepository.saveAndFlush(role);
+            } else if (roleName.equals("ROLE_ADMIN")) {
+                role.setPermissions(limitedPermissions);
+                roleRepository.saveAndFlush(role);
             }
         }
-        adminRole.setPermissions(limitedPermissions);
-        adminRole = roleRepository.saveAndFlush(adminRole);
 
-        // 3. Crear o actualizar Usuarios
-        setupUser("superuser", "superuser@sgd.com", "Super", "User", "Admin1234!", "CI", "0000000", superuserRole);
-        setupUser("admin", "admin@sgd.com", "Admin", "Limited", "Admin1234!", "CI", "1111111", adminRole);
+        // 3. Crear o actualizar Usuarios (Obteniendo roles necesarios)
+        Role superuserRole = roleRepository.findByName("ROLE_SUPERUSER").orElseThrow();
+        Role adminRole = roleRepository.findByName("ROLE_ADMIN").orElseThrow();
+
+        setupUser("superuser", "superuser@sgd.com", "Super", "User", "superuser123", "CI", "0000000", superuserRole);
+        setupUser("admin", "admin@sgd.com", "Admin", "Limited", "admin123", "CI", "1111111", adminRole);
 
         log.info(">>> DataInitializer finalizado correctamente.");
     }
@@ -103,8 +97,9 @@ public class DataInitializer implements ApplicationRunner {
     private void setupUser(String username, String email, String first, String last, String pass, String docType, String docNum, Role role) {
         User user = userRepository.findByUsername(username).orElse(null);
         if (user != null) {
-            log.info(">>> Actualizando roles para el usuario: {}", username);
+            log.info(">>> Actualizando roles y credenciales para el usuario: {}", username);
             user.setRoles(new HashSet<>(Set.of(role)));
+            user.setPassword(passwordEncoder.encode(pass));
             // Sincronizamos campos extra si faltan
             if (user.getDocumentNumber() == null) {
                 user.setDocumentType(docType);
