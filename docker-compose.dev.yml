@@ -1,0 +1,83 @@
+name: sgd-hc-dev
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:16-alpine
+    container_name: sgd-hc-postgres
+    env_file:
+      - ./SI2-SGD-HC-backend/.env
+    environment:
+      POSTGRES_DB: ${DB_NAME:-sgd_hc}
+      POSTGRES_USER: ${DB_USERNAME:-superuser}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-superuser}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5433:5432"
+    networks:
+      - sgd-hc-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-superuser} -d ${DB_NAME:-sgd_hc}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # Backend Service
+  backend:
+    image: sgd-hc-backend:dev
+    build:
+      context: ./SI2-SGD-HC-backend
+      dockerfile: Dockerfile.dev
+    container_name: sgd-hc-backend
+    env_file:
+      - ./SI2-SGD-HC-backend/.env
+    environment:
+      # Use internal postgres container
+      DB_URL: jdbc:postgresql://postgres:5432/${DB_NAME:-sgd_hc}
+      DB_NAME: ${DB_NAME:-sgd_hc}
+      DB_USERNAME: ${DB_USERNAME:-superuser}
+      DB_PASSWORD: ${DB_PASSWORD:-superuser}
+      SPRING_PROFILES_ACTIVE: dev
+    ports:
+      - "8081:8080"
+    volumes:
+      # Hot-reload
+      - ./SI2-SGD-HC-backend/src:/app/src
+    networks:
+      - sgd-hc-net
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # Frontend Service 
+  frontend:
+    image: sgd-hc-frontend:dev
+    build:
+      context: ./SI2-SGD-HC-frontend
+      dockerfile: Dockerfile.dev
+    container_name: sgd-hc-frontend
+    ports:
+      - "4200:4200"
+    volumes:
+      # Hot-reload
+      - ./SI2-SGD-HC-frontend/src:/app/src
+      - ./SI2-SGD-HC-frontend/public:/app/public
+    networks:
+      - sgd-hc-net
+    depends_on:
+      - backend
+    environment:
+      # Point to backend on the host, since frontend runs in browser
+      API_URL: ${API_URL:-http://localhost:8081/api}
+    command: npm run start:docker -- --host 0.0.0.0 --poll 2000
+    restart: unless-stopped
+
+networks:
+  sgd-hc-net:
+    driver: bridge
+
+volumes:
+  postgres_data:
+    driver: local

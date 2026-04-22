@@ -1,0 +1,68 @@
+name: sgd-hc-prod
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: sgd-hc-postgres-prod
+    env_file:
+      - ./SI2-SGD-HC-backend/.env
+    environment:
+      POSTGRES_DB: ${DB_NAME:-sgd_hc}
+      POSTGRES_USER: ${DB_USERNAME:-superuser}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-superuser}
+    volumes:
+      - postgres_data_prod:/var/lib/postgresql/data
+    networks:
+      - sgd-hc-net-prod
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-superuser} -d ${DB_NAME:-sgd_hc}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: ./SI2-SGD-HC-backend
+      dockerfile: Dockerfile.deploy
+    image: sgd-hc-backend:prod
+    container_name: sgd-hc-backend-prod
+    env_file:
+      - ./SI2-SGD-HC-backend/.env
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/${DB_NAME:-sgd_hc}
+      DB_NAME: ${DB_NAME:-sgd_hc}
+      DB_USERNAME: ${DB_USERNAME:-superuser}
+      DB_PASSWORD: ${DB_PASSWORD:-superuser}
+      SPRING_PROFILES_ACTIVE: prod
+    ports:
+      - "${BACKEND_PORT:-8081}:8080"
+    networks:
+      - sgd-hc-net-prod
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./SI2-SGD-HC-frontend
+      dockerfile: Dockerfile.deploy
+      args:
+        API_URL: ${API_URL:-http://localhost:8081/api}
+    image: sgd-hc-frontend:prod
+    container_name: sgd-hc-frontend-prod
+    ports:
+      - "${FRONTEND_PORT:-8080}:8080"
+    networks:
+      - sgd-hc-net-prod
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+networks:
+  sgd-hc-net-prod:
+    driver: bridge
+
+volumes:
+  postgres_data_prod:
+    driver: local
