@@ -88,7 +88,7 @@ public class UserService {
      */
     @Transactional(readOnly = true)
     public Iterable<UserResponseDto> getAllUsers() {
-        return userRepository.findAll().stream()
+        return userRepository.findAllRegularUsers().stream()
                 .map(userMapper::toResponseDto)
                 .toList();
     }
