@@ -7,9 +7,13 @@ plugins {
 group = 'com.sgd_hc'
 version = '0.0.1-SNAPSHOT'
 
+// Aplicamos el script que se encarga de leer el .env y exportar targetJavaVersion
+apply from: 'env.gradle'
+
 java {
 	toolchain {
-		languageVersion = JavaLanguageVersion.of(25)
+        // Convertimos el texto a número entero para que el compilador lo entienda
+		languageVersion = JavaLanguageVersion.of(targetJavaVersion as Integer)
 	}
 }
 
