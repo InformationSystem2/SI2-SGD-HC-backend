@@ -35,5 +35,5 @@ USER spring
 # Configuración de memoria adaptada para Cloud Run
 ENV JAVA_OPTS="-XX:+UseParallelGC -Xms256m -Xmx512m -XX:MaxRAMPercentage=75.0 -Duser.timezone=America/La_Paz -Djava.net.preferIPv4Stack=true"
 
-# Entrypoint limpio de Cloud Run. Usa la variable $PORT que inyecta Google (por defecto 8080)
+# Usa la variable $PORT que inyecta Google (por defecto 8080)
 ENTRYPOINT ["sh", "-c", "exec java $JAVA_OPTS -Dserver.port=${PORT:-8080} org.springframework.boot.loader.launch.JarLauncher"]
