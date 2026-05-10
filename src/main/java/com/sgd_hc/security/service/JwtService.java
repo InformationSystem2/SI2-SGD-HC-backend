@@ -17,6 +17,8 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Function;
 
+import com.sgd_hc.security.details.SecurityUser;
+
 @Service
 public class JwtService {
 
@@ -36,6 +38,16 @@ public class JwtService {
         return extractClaim(token, Claims::getSubject);
     }
 
+    /** Extrae el UUID del tenant desde los claims del JWT. */
+    public String extractTenantId(String token) {
+        return extractClaim(token, claims -> claims.get("tenantId", String.class));
+    }
+
+    /** Extrae el slug del tenant desde los claims del JWT. */
+    public String extractTenantSlug(String token) {
+        return extractClaim(token, claims -> claims.get("tenantSlug", String.class));
+    }
+
     public <T> T extractClaim(String token, @NonNull Function<Claims, T> claimsResolver) {
         return claimsResolver.apply(extractAllClaims(token));
     }
@@ -46,6 +58,12 @@ public class JwtService {
         Map<String, Object> extraClaims = new HashMap<>();
         extraClaims.put("roles", userDetails.getAuthorities()
                 .stream().map(GrantedAuthority::getAuthority).toList());
+
+        if (userDetails instanceof SecurityUser su) {
+            extraClaims.put("tenantId", su.getUser().getTenant().getId().toString());
+            extraClaims.put("tenantSlug", su.getUser().getTenant().getSlug());
+        }
+
         return buildToken(extraClaims, userDetails, jwtExpiration);
     }
 
