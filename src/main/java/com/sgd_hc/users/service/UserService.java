@@ -85,9 +85,7 @@ public class UserService {
 
     @Transactional
     public void deleteUser(UUID id) {
-        User user = findOrThrow(id);
-        user.setIsActive(false);
-        userRepository.save(user);
+        userRepository.deleteById(id);
     }
 
     private User findOrThrow(UUID id) {

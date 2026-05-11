@@ -39,13 +39,14 @@ public class Document extends BaseEntity {
             foreignKey = @ForeignKey(name = "fk_documents_uploader"))
     private User uploader;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "template_id", nullable = false,
+    @ManyToOne(fetch = FetchType.LAZY, optional = true)
+    @JoinColumn(name = "template_id", nullable = true,
             foreignKey = @ForeignKey(name = "fk_documents_template"))
     private DocumentTemplate template;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "status", nullable = false, length = 30,
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
+    @Column(name = "status", nullable = false,
             columnDefinition = "document_status_enum")
     @Builder.Default
     private DocumentStatus status = DocumentStatus.DRAFT;

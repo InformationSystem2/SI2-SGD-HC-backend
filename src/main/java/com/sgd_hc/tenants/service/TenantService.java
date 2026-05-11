@@ -107,6 +107,8 @@ public class TenantService {
                     "status", "PENDING_PAYMENT",
                     "message", "Registro inicial exitoso. Proceda al pago simulado."
             );
+
+
         } finally {
             TenantContext.setBypassFilter(false);
         }

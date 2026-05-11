@@ -112,7 +112,7 @@ public class DataInitializer implements ApplicationRunner {
             setupUser(systemUsername, systemEmail, systemFirstName, systemLastName, systemPassword, DocumentType.CI, systemNationalId, superuserRole, hqCoreTenant);
             setupUser(defaultUsername, defaultEmail, defaultFirstName, defaultLastName, defaultPassword, DocumentType.CI, defaultNationalId, adminRole,     defaultTenant);
 
-            log.info(">>> DataInitializer finalizado correctamente.");
+            log.info(">>> DataInitializer fuser_notification_preferencesinalizado correctamente.");
         } finally {
             // HIGIENE DE CÓDIGO: Asegurar siempre la limpieza del ThreadLocal, incluso en la inicialización
             TenantContext.clear();
@@ -200,7 +200,15 @@ public class DataInitializer implements ApplicationRunner {
             new String[]{"PATIENT_READ",      "PATIENTS",    "READ"},
             new String[]{"PATIENT_CREATE",    "PATIENTS",    "CREATE"},
             new String[]{"PATIENT_UPDATE",    "PATIENTS",    "UPDATE"},
-            new String[]{"PATIENT_DELETE",    "PATIENTS",    "DELETE"}
+            new String[]{"PATIENT_DELETE",    "PATIENTS",    "DELETE"},
+            new String[]{"DOCUMENT_READ",     "DOCUMENTS",   "READ"},
+            new String[]{"DOCUMENT_CREATE",   "DOCUMENTS",   "CREATE"},
+            new String[]{"DOCUMENT_UPDATE",   "DOCUMENTS",   "UPDATE"},
+            new String[]{"DOCUMENT_DELETE",   "DOCUMENTS",   "DELETE"},
+            new String[]{"TEMPLATE_READ",     "TEMPLATES",   "READ"},
+            new String[]{"TEMPLATE_CREATE",   "TEMPLATES",   "CREATE"},
+            new String[]{"TEMPLATE_UPDATE",   "TEMPLATES",   "UPDATE"},
+            new String[]{"TEMPLATE_DELETE",   "TEMPLATES",   "DELETE"}
         );
 
         Set<String> existingNames = new HashSet<>();

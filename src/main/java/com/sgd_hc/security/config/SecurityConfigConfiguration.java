@@ -39,11 +39,14 @@ public class SecurityConfigConfiguration {
             "/api/auth/**",
             "/api/public/**",
             "/api/tenants/public/**",
+            "/api/documents/onlyoffice/callback",
+            "/api/documents/onlyoffice/empty-doc",
             "/v3/api-docs/**",
             "/swagger-ui/**",
             "/swagger-ui.html",
             "/h2-console/**",
-            "/error"
+            "/error",
+            "/uploads/**"
     };
 
     @Bean

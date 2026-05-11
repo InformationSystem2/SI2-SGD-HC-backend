@@ -1,5 +1,6 @@
 package com.sgd_hc.documents.entity;
 
+import com.sgd_hc.documents.dto.FieldConfig;
 import com.sgd_hc.users.entity.BaseEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -40,5 +41,8 @@ public class DocumentTemplate extends BaseEntity {
 
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "ui_schema", nullable = false, columnDefinition = "jsonb")
-    private Map<String, String> uiSchema;
+    private Map<String, FieldConfig> uiSchema;
+
+    @Column(name = "is_active", nullable = false)
+    private Boolean isActive = true;
 }
