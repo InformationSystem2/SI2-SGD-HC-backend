@@ -19,6 +19,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
+import java.util.Set;
 import java.util.UUID;
 
 @Slf4j
@@ -237,5 +238,88 @@ public class FileStorageService {
         }
         
         return path;
+    }
+
+    // ── Branding Logo Support ──────────────────────────────────────────
+
+    private static final Set<String> ALLOWED_LOGO_TYPES = Set.of(
+            "image/png", "image/jpeg", "image/jpg", "image/svg+xml", "image/webp"
+    );
+    private static final long MAX_LOGO_SIZE = 3 * 1024 * 1024;
+
+    /**
+     * Guarda archivo en subcarpeta y retorna ruta relativa.
+     * Compatible con Azure Blob Storage.
+     */
+    public String upload(MultipartFile file, String folder) throws IOException {
+        if (file.isEmpty()) {
+            throw new IllegalArgumentException("Archivo vacío");
+        }
+
+        String original = StringUtils.cleanPath(
+                file.getOriginalFilename() != null ? file.getOriginalFilename() : "file");
+        String extension = original.contains(".")
+                ? original.substring(original.lastIndexOf('.'))
+                : "";
+        String filename = UUID.randomUUID() + extension;
+        String relativePath = folder + "/" + filename;
+
+        if (isAzureActive()) {
+            try (InputStream is = file.getInputStream()) {
+                blobContainerClient.getBlobClient(relativePath).upload(is, file.getSize(), true);
+                log.info(">>> FileStorage: Upload Azure: {}", relativePath);
+            }
+        } else {
+            Path dir = Paths.get(uploadDir, folder).toAbsolutePath().normalize();
+            Files.createDirectories(dir);
+            Path dest = dir.resolve(filename);
+            Files.copy(file.getInputStream(), dest, StandardCopyOption.REPLACE_EXISTING);
+            log.info(">>> FileStorage: Upload local: {}", dest);
+        }
+        return relativePath;
+    }
+
+    /**
+     * Retorna URL completa del archivo (Azure blob URL o local path).
+     */
+    public String getUrl(String relativePath) {
+        if (relativePath == null || relativePath.isBlank()) {
+            return "";
+        }
+
+        if (isAzureActive()) {
+            return String.format("https://%s.blob.core.windows.net/%s/%s",
+                    extractAccountName(), containerName, relativePath);
+        }
+        return "/uploads/" + relativePath;
+    }
+
+    private String extractAccountName() {
+        if (!StringUtils.hasText(connectionString)) {
+            return "unknown";
+        }
+        for (String part : connectionString.split(";")) {
+            if (part.trim().startsWith("AccountName=")) {
+                return part.trim().substring("AccountName=".length());
+            }
+        }
+        return "unknown";
+    }
+
+    /**
+     * Valida archivo de logo: tipo MIME y tamaño (3MB max).
+     */
+    public void validateLogo(MultipartFile file) {
+        if (file == null || file.isEmpty()) {
+            throw new IllegalArgumentException("Archivo de logo requerido");
+        }
+        String contentType = file.getContentType();
+        if (!ALLOWED_LOGO_TYPES.contains(contentType)) {
+            throw new IllegalArgumentException(
+                    "Tipo de archivo no permitido: " + contentType + ". Permitted: PNG, JPEG, SVG, WebP");
+        }
+        if (file.getSize() > MAX_LOGO_SIZE) {
+            throw new IllegalArgumentException("El archivo excede el límite de 3MB");
+        }
     }
 }

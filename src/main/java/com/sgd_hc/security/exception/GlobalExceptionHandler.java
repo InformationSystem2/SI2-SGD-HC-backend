@@ -34,6 +34,11 @@ public class GlobalExceptionHandler {
         return errorBody(HttpStatus.BAD_REQUEST, "Bad Request", ex.getMessage(), request);
     }
 
+    @ExceptionHandler(IllegalStateException.class)
+    public ResponseEntity<Object> handleIllegalState(IllegalStateException ex, WebRequest request) {
+        return errorBody(HttpStatus.BAD_REQUEST, "Bad Request", ex.getMessage(), request);
+    }
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<Object> handleValidation(MethodArgumentNotValidException ex, WebRequest request) {
         String message = ex.getBindingResult().getFieldErrors().stream()
@@ -47,6 +52,19 @@ public class GlobalExceptionHandler {
     public ResponseEntity<Object> handleEmptyResultDataAccessException(org.springframework.dao.EmptyResultDataAccessException ex, WebRequest request) {
         return errorBody(HttpStatus.NOT_FOUND, "Not Found",
                 "El recurso solicitado no existe o no pertenece a tu clínica.", request);
+    }
+
+    @ExceptionHandler(TenantSuspendedException.class)
+    public ResponseEntity<Object> handleTenantSuspendedException(TenantSuspendedException ex, WebRequest request) {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("timestamp", LocalDateTime.now());
+        body.put("status", HttpStatus.FORBIDDEN.value());
+        body.put("error", "Tenant Suspended");
+        body.put("message", ex.getMessage());
+        body.put("tenantSlug", ex.getTenantSlug());
+        body.put("tenantName", ex.getTenantName());
+        body.put("path", request.getDescription(false).replace("uri=", ""));
+        return new ResponseEntity<>(body, HttpStatus.FORBIDDEN);
     }
 
     @ExceptionHandler(Exception.class)

@@ -3,6 +3,7 @@ package com.sgd_hc;
 import com.sgd_hc.patients.entity.Gender;
 import com.sgd_hc.patients.entity.Patient;
 import com.sgd_hc.patients.repository.PatientRepository;
+import com.sgd_hc.tenants.config.TenantSettingsDefaults;
 import com.sgd_hc.tenants.entity.SubscriptionPlan;
 import com.sgd_hc.tenants.entity.SubscriptionStatus;
 import com.sgd_hc.tenants.entity.Tenant;
@@ -14,18 +15,22 @@ import com.sgd_hc.users.entity.User;
 import com.sgd_hc.users.repository.PermissionRepository;
 import com.sgd_hc.users.repository.RoleRepository;
 import com.sgd_hc.users.repository.UserRepository;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import net.datafaker.Faker;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 import com.sgd_hc.security.config.tenant.TenantContext;
 import org.springframework.beans.factory.annotation.Value;
 
+import java.io.IOException;
 import java.time.LocalDate;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -42,6 +47,7 @@ public class DataInitializer implements ApplicationRunner {
     private final RoleRepository      roleRepository;
     private final PermissionRepository permissionRepository;
     private final PasswordEncoder     passwordEncoder;
+    private final ObjectMapper        objectMapper;
     private final PatientRepository   patientRepository;
 
     @Value("${app.seed.system.slug}")     private String systemSlug;
@@ -91,25 +97,28 @@ public class DataInitializer implements ApplicationRunner {
                 Tenant roleTenant = hqCoreTenant;
 
                 boolean exists = roleRepository.findByNameAndTenantId(roleName, roleTenant.getId()).isPresent();
+                Role role;
                 if (!exists) {
                     log.info(">>> Creando rol: {} en tenant: {}", roleName, roleTenant.getSlug());
                     try {
-                        Role role = roleRepository.saveAndFlush(Role.builder()
+                        role = roleRepository.saveAndFlush(Role.builder()
                                 .name(roleName)
                                 .description(roleDesc)
                                 .tenant(roleTenant)
                                 .build());
-
-                        if (roleName.equals("ROLE_SUPERUSER")) {
-                            role.setPermissions(allPermissions);
-                            roleRepository.saveAndFlush(role);
-                        } else if (roleName.equals("ROLE_ADMIN")) {
-                            role.setPermissions(allPermissions);
-                            roleRepository.saveAndFlush(role);
-                        }
                     } catch (Exception e) {
                         log.warn(">>> Conflicto al crear rol {}: {}", roleName, e.getMessage());
+                        role = roleRepository.findByNameAndTenantId(roleName, roleTenant.getId()).orElse(null);
                     }
+                } else {
+                    role = roleRepository.findByNameAndTenantId(roleName, roleTenant.getId()).orElse(null);
+                }
+
+                // Siempre asignar todos los permisos a SUPERUSER y ADMIN
+                if (role != null && (roleName.equals("ROLE_SUPERUSER") || roleName.equals("ROLE_ADMIN"))) {
+                    role.setPermissions(allPermissions);
+                    roleRepository.saveAndFlush(role);
+                    log.info(">>> permisos actualizados para rol: {}", roleName);
                 }
             }
 
@@ -150,6 +159,16 @@ public class DataInitializer implements ApplicationRunner {
         // Tenant por defecto para demo/clínica inicial
         return tenantRepository.findBySlug(defaultSlug).orElseGet(() -> {
             log.info(">>> Creando tenant por defecto '{}'...", defaultSlug);
+            Map<String, Object> settings = new HashMap<>();
+            settings.putAll(TenantSettingsDefaults.getAllDefaults());
+            try {
+                ClassPathResource res = new ClassPathResource("default-branding.json");
+                Map<String, Object> defaultBranding = objectMapper.readValue(res.getInputStream(), Map.class);
+                settings.put("branding", defaultBranding);
+            } catch (IOException e) {
+                log.warn("No se pudo cargar default-branding.json en DataInitializer");
+            }
+
             return tenantRepository.saveAndFlush(Tenant.builder()
                     .name(defaultName)
                     .slug(defaultSlug)
@@ -159,6 +178,7 @@ public class DataInitializer implements ApplicationRunner {
                     .subscriptionPlan(SubscriptionPlan.PRO)
                     .subscriptionStatus(SubscriptionStatus.ACTIVE)
                     .subscriptionStartDate(LocalDate.now())
+                    .settings(settings)
                     .build());
         });
     }

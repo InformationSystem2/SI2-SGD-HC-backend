@@ -7,16 +7,16 @@ import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.UUID;
 
-public record TenantResponseDto(
+public record TenantListItemDto(
         UUID id,
         String name,
         String slug,
-        String email,
-        String phone,
-        String address,
         SubscriptionPlan subscriptionPlan,
         SubscriptionStatus subscriptionStatus,
-        LocalDate subscriptionStartDate,
+        LocalDate subscriptionEndDate,
+        String adminName,
+        String adminEmail,
+        int userCount,
         OffsetDateTime createdAt,
         OffsetDateTime updatedAt
 ) {}

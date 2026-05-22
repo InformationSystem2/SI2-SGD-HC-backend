@@ -1,7 +1,9 @@
 package com.sgd_hc.security.filter;
 
 import com.sgd_hc.security.config.tenant.TenantContext;
+import com.sgd_hc.security.exception.TenantSuspendedException;
 import com.sgd_hc.security.service.JwtService;
+import com.sgd_hc.tenants.service.TenantRevocationService;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -16,20 +18,16 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.UUID;
 
-/**
- * Filtro JWT que:
- * 1. Valida el token Bearer en cada petición.
- * 2. Establece el SecurityContext de Spring (autenticación).
- * 3. Puebla {@link TenantContext} con el slug del tenant extraído del token,
- */
 @Component
 @RequiredArgsConstructor
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtService jwtService;
     private final UserDetailsService userDetailsService;
+    private final TenantRevocationService revocationService;
 
     @Override
     protected void doFilterInternal(
@@ -38,7 +36,6 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             @NonNull FilterChain filterChain
     ) throws ServletException, IOException {
 
-        // Intentar capturar el Tenant desde el Header (esencial para el Login sin token)
         String tenantHeader = request.getHeader("X-Tenant-ID");
         if (tenantHeader != null && !tenantHeader.isBlank()) {
             TenantContext.setCurrentTenantSlug(tenantHeader);
@@ -72,16 +69,28 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             UserDetails userDetails = userDetailsService.loadUserByUsername(username);
 
             if (jwtService.isTokenValid(jwt, userDetails)) {
-                // 1. Establecer autenticación en Spring Security
+                String tenantIdStr = jwtService.extractTenantId(jwt);
+                String jti = jwtService.extractJti(jwt);
+                Instant tokenIssuedAt = jwtService.extractIssuedAt(jwt);
+
+                if (tenantIdStr != null && jti != null && tokenIssuedAt != null) {
+                    UUID tenantId = UUID.fromString(tenantIdStr);
+                    if (revocationService.isTokenRevoked(jti, tenantId, tokenIssuedAt)) {
+                        response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+                        response.setContentType("application/json");
+                        response.getWriter().write(
+                                "{\"error\":\"Token revoked\",\"message\":\"Su sesión ha sido invalidada.\"}"
+                        );
+                        return;
+                    }
+                }
+
                 UsernamePasswordAuthenticationToken authToken =
                         new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());
                 authToken.setDetails(request);
                 SecurityContextHolder.getContext().setAuthentication(authToken);
 
-                // 2. Poblar TenantContext con los datos del JWT.
                 String tenantSlug = jwtService.extractTenantSlug(jwt);
-                String tenantIdStr = jwtService.extractTenantId(jwt);
-
                 if (tenantSlug != null && !tenantSlug.isBlank()) {
                     TenantContext.setCurrentTenantSlug(tenantSlug);
                 }

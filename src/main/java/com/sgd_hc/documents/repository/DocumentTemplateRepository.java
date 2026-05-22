@@ -3,6 +3,9 @@ package com.sgd_hc.documents.repository;
 import com.sgd_hc.documents.entity.DocumentTemplate;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import java.util.List;
 import java.util.Optional;
@@ -32,4 +35,8 @@ public interface DocumentTemplateRepository extends JpaRepository<DocumentTempla
      * o un {@link Optional#empty()} si la plantilla no existe o pertenece a otra clínica.
      */
     Optional<DocumentTemplate> findByIdAndTenantId(UUID id, UUID tenantId);
+
+    @Modifying
+    @Query(value = "DELETE FROM document_templates WHERE tenant_id = :tenantId", nativeQuery = true)
+    void deleteAllByTenantId(@Param("tenantId") UUID tenantId);    
 }

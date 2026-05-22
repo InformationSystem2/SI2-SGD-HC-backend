@@ -1,10 +1,6 @@
 package com.sgd_hc.tenants.mapper;
 
 import com.sgd_hc.tenants.dto.TenantRegisterRequestDto;
-import com.sgd_hc.tenants.dto.TenantResponseDto;
-import com.sgd_hc.tenants.dto.TenantUpdateDto;
-import com.sgd_hc.tenants.entity.SubscriptionPlan;
-import com.sgd_hc.tenants.entity.SubscriptionStatus;
 import com.sgd_hc.tenants.entity.Tenant;
 import com.sgd_hc.users.entity.Role;
 import com.sgd_hc.users.entity.User;
@@ -18,19 +14,10 @@ import java.util.Set;
 public class TenantMapper {
 
     public Tenant toEntity(TenantRegisterRequestDto dto) {
-        SubscriptionPlan plan = SubscriptionPlan.BASIC;
-        if (dto.selectedPlan() != null) {
-            try {
-                plan = SubscriptionPlan.valueOf(dto.selectedPlan().toUpperCase());
-            } catch (Exception ignored) {}
-        }
-
         return Tenant.builder()
                 .name(dto.tenantName())
                 .email(dto.adminEmail())
                 .phone(dto.adminPhone())
-                .subscriptionPlan(plan)
-                .subscriptionStatus(SubscriptionStatus.PENDING_PAYMENT)
                 .build();
     }
 
@@ -59,32 +46,5 @@ public class TenantMapper {
                 .build();
     }
 
-    public void updateEntityFromDto(TenantUpdateDto dto, Tenant entity) {
-        if (dto.name() != null) entity.setName(dto.name());
-        if (dto.email() != null) entity.setEmail(dto.email());
-        if (dto.phone() != null) entity.setPhone(dto.phone());
-        if (dto.address() != null) entity.setAddress(dto.address());
-        if (dto.subscriptionPlan() != null) entity.setSubscriptionPlan(dto.subscriptionPlan());
-        if (dto.subscriptionStatus() != null) entity.setSubscriptionStatus(dto.subscriptionStatus());
-    }
 
-    public TenantResponseDto toResponseDto(Tenant entity) {
-        if (entity == null) {
-            return null;
-        }
-        
-        return new TenantResponseDto(
-                entity.getId(),
-                entity.getName(),
-                entity.getSlug(),
-                entity.getEmail(),
-                entity.getPhone(),
-                entity.getAddress(),
-                entity.getSubscriptionPlan(),
-                entity.getSubscriptionStatus(),
-                entity.getSubscriptionStartDate(),
-                entity.getCreatedAt(),
-                entity.getUpdatedAt()
-        );
-    }
 }
