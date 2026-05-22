@@ -13,6 +13,7 @@ import com.sgd_hc.users.entity.User;
 
 import com.sgd_hc.users.repository.RoleRepository;
 import com.sgd_hc.users.repository.UserRepository;
+import com.sgd_hc.documents.TemplateDataSeeder;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -42,6 +43,7 @@ public class TenantService {
 
     private final PasswordEncoder passwordEncoder;
     private final TenantMapper tenantMapper;
+    private final TemplateDataSeeder templateDataSeeder;
 
     @Value("${app.seed.system.slug}")
     private String systemSlug;
@@ -100,6 +102,9 @@ public class TenantService {
             String encodedPassword = passwordEncoder.encode(dto.adminPassword());
             User adminUser = userRepository.save(
                 tenantMapper.toAdminUserEntity(dto, encodedPassword, adminRole, tenant));
+
+            // Sembrar plantillas clínicas predefinidas para el nuevo tenant
+            templateDataSeeder.seedForTenant(tenant);
 
             return Map.of(
                     "tenantId", tenant.getId().toString(),

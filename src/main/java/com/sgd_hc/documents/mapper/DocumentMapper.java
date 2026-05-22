@@ -1,3 +1,5 @@
+//src/main/java/com/sgd_hc/documents/mapper/DocumentMapper.java
+
 package com.sgd_hc.documents.mapper;
 
 import com.sgd_hc.documents.dto.DocumentRequestDto;
@@ -28,16 +30,18 @@ public class DocumentMapper {
 
     public DocumentResponseDto toResponseDto(Document doc) {
         // template es nullable para documentos externos
-        UUID templateId   = doc.getTemplate() != null ? doc.getTemplate().getId()   : null;
+        UUID templateId = doc.getTemplate() != null ? doc.getTemplate().getId() : null;
         String templateName = doc.getTemplate() != null ? doc.getTemplate().getName() : "Documento Externo";
 
-        String patientName  = doc.getPatient().getFirstName() + " " + doc.getPatient().getLastName();
+        String patientName = doc.getPatient().getFirstName() + " " + doc.getPatient().getLastName();
+        String patientDocNumber = doc.getPatient().getDocumentNumber(); // ← OBTENER NÚMERO
         String uploaderName = doc.getUploader().getFirstName() + " " + doc.getUploader().getLastName();
 
         return new DocumentResponseDto(
                 doc.getId(),
                 doc.getPatient().getId(),
                 patientName,
+                patientDocNumber, // ← AGREGAR
                 doc.getUploader().getId(),
                 uploaderName,
                 templateId,
@@ -47,8 +51,6 @@ public class DocumentMapper {
                 doc.getIssueDate(),
                 doc.getExpiryDate(),
                 doc.getFileUrl(),
-                doc.getIsExternalSource(),
-                doc.getCategory()
-        );
+                doc.getIsExternalSource());
     }
 }

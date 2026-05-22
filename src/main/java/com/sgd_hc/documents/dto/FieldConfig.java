@@ -9,7 +9,8 @@ public record FieldConfig(
     boolean required,
     String label,
     int order,
-    Map<String, String> options
+    Map<String, String> options,
+    Map<String, FieldConfig> subSchema
 ) {
     public FieldConfig {
         if (options == null) {
@@ -19,5 +20,9 @@ public record FieldConfig(
 
     public FieldConfig(FieldType type, boolean required, String label, int order) {
         this(type, required, label, order, Map.of());
+    }
+
+    public FieldConfig(FieldType type, boolean required, String label, int order, Map<String, FieldConfig> subSchema) {
+        this(type, required, label, order, Map.of(), subSchema);
     }
 }

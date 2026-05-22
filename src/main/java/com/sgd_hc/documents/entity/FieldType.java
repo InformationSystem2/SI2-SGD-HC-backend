@@ -11,5 +11,6 @@ public enum FieldType {
     RADIO,
     CHECKBOX,
     FILE,
-    DISPLAY_TEXT
+    DISPLAY_TEXT,
+    ARRAY
 }

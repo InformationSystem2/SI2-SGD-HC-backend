@@ -24,7 +24,12 @@ configurations {
 }
 
 repositories {
-	mavenCentral()
+    mavenCentral()
+    maven { url = uri("https://maven.dcm4che.org/") }
+    maven { url = uri("https://www.dcm4che.org/maven2/") }
+    // Repositorio donde vive weasis-core-img-bom
+    maven { url = uri("https://repo.maven.apache.org/maven2/") } // ya cubierto por mavenCentral
+    maven { url = uri("https://github.com/nroduit/mvn-repo/raw/master/") }
 }
 
 dependencies {
@@ -55,9 +60,24 @@ dependencies {
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
     implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.7.0'
     implementation 'org.apache.poi:poi-ooxml:5.4.1'
+    implementation 'com.github.librepdf:openpdf:1.3.43'
+
+    implementation 'org.dcm4che:dcm4che-core:5.34.3'
+    implementation 'org.dcm4che:dcm4che-imageio:5.34.3'
+
+    implementation 'net.datafaker:datafaker:2.4.2'
+    implementation 'com.azure:azure-storage-blob:12.29.0'
 }
 
 tasks.named('test') {
 	useJUnitPlatform()
     enabled = false // Ignorar ejecución de tests para permitir el build sin base de datos
+}
+
+tasks.withType(Javadoc) {
+    options.encoding = 'UTF-8'
+    options.charSet = 'UTF-8'
+    options.docEncoding = 'UTF-8'
+    // Opcional: Esto evita que Javadoc falle si te falta documentar algún parámetro
+    options.addStringOption('Xdoclint:none', '-quiet') 
 }

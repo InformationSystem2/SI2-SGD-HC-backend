@@ -22,7 +22,8 @@ import static com.sgd_hc.documents.entity.FieldType.*;
 /**
  * siembra las plantillas clínicas predefinidas al arrancar la aplicación.
  *
- * <p>Se ejecuta por cada tenant configurado: si un tenant ya tiene plantillas,
+ * <p>
+ * Se ejecuta por cada tenant configurado: si un tenant ya tiene plantillas,
  * se omite la siembra para ese tenant.
  * Esto garantiza que tanto el superusuario (tenant "system") como el admin
  * (tenant "default") vean plantillas al iniciar el sistema.
@@ -48,73 +49,127 @@ public class TemplateDataSeeder {
         TenantContext.setBypassFilter(true);
 
         try {
-            seedForSlug(systemTenantSlug);
-            seedForSlug(defaultTenantSlug);
+            List<Tenant> tenants = tenantRepository.findAll();
+            for (Tenant tenant : tenants) {
+                seedForTenant(tenant);
+            }
         } finally {
             TenantContext.clear();
         }
     }
 
-    private void seedForSlug(String slug) {
-        Tenant tenant = tenantRepository.findBySlug(slug).orElse(null);
+    public void seedForTenant(Tenant tenant) {
         if (tenant == null) {
-            log.warn(">>> TemplateDataSeeder: tenant '{}' no encontrado, se omite.", slug);
+            log.warn(">>> TemplateDataSeeder: tenant nulo, se omite.");
             return;
         }
 
-        List<DocumentTemplate> existing =
-                templateRepository.findByTenantIdAndIsActiveTrue(tenant.getId());
+        List<DocumentTemplate> existing = templateRepository.findByTenantIdAndIsActiveTrue(tenant.getId());
 
         if (!existing.isEmpty()) {
             log.info(">>> TemplateDataSeeder: tenant '{}' ya tiene {} plantilla(s), se omite.",
-                    slug, existing.size());
+                    tenant.getSlug(), existing.size());
             return;
         }
 
         templateRepository.save(buildTemplate(
-                "Receta Médica Estándar",
-                "Plantilla estándar para emisión de recetas médicas",
+                "Ficha de Ingreso",
+                "Datos básicos de admisión",
                 Map.of(
-                        "medicamento", new FieldConfig(TEXT, true, "Medicamento", 1),
-                        "dosis", new FieldConfig(TEXT, false, "Dosis", 2),
-                        "indicaciones", new FieldConfig(TEXTAREA, false, "Indicaciones", 3)
+                        "tipo_sangre", new FieldConfig(
+                                SELECT,
+                                true,
+                                "Grupo Sanguíneo",
+                                1,
+                                Map.of(
+                                        "O_POS", "O Positivo",
+                                        "O_NEG", "O Negativo",
+                                        "A_POS", "A Positivo",
+                                        "B_POS", "B Positivo"),
+                                Map.of() // sin subSchema
+                        ),
+                        "observaciones", new FieldConfig(TEXTAREA, false, "Notas", 2)),
+                tenant));
+
+        templateRepository.save(buildTemplate(
+                "Receta Médica Estándar (Multi-Medicamento)",
+                "Plantilla oficial que permite la prescripción de uno o múltiples medicamentos dentro de una lista dinámica.",
+                Map.ofEntries(
+                        Map.entry("diagnostico_principal", new FieldConfig(TEXT, true, "Diagnóstico Principal", 1)),
+
+                        Map.entry("medicamentos_recetados", new FieldConfig(
+                                ARRAY,
+                                true,
+                                "Lista de Medicamentos Prescritos",
+                                2,
+                                Map.of(),
+                                Map.ofEntries(
+                                        Map.entry("nombre_medicamento", new FieldConfig(TEXT, true, "Medicamento", 1)),
+                                        Map.entry("dosis", new FieldConfig(TEXT, true, "Dosis y Presentación (Ej. 500mg, Comprimido)", 2)),
+                                        Map.entry("frecuencia", new FieldConfig(
+                                                SELECT,
+                                                true,
+                                                "Frecuencia de Toma",
+                                                3,
+                                                Map.ofEntries(
+                                                        Map.entry("CADA_4_HRS", "Cada 4 horas"),
+                                                        Map.entry("CADA_6_HRS", "Cada 6 horas"),
+                                                        Map.entry("CADA_8_HRS", "Cada 8 horas"),
+                                                        Map.entry("CADA_12_HRS", "Cada 12 horas"),
+                                                        Map.entry("CADA_24_HRS", "Una vez al día (24 hrs)"),
+                                                        Map.entry("CONDICIONAL", "Condicional al dolor o fiebre")
+                                                ),
+                                                null
+                                        )),
+                                        Map.entry("duracion", new FieldConfig(NUMBER, true, "Duración (Días)", 4))
+                                )
+                        )),
+
+                        Map.entry("indicaciones_adicionales", new FieldConfig(TEXTAREA, false, "Indicaciones Generales / Recomendaciones de Cuidado", 3))
                 ),
                 tenant
         ));
 
+        
         templateRepository.save(buildTemplate(
-                "Evolución Clínica",
-                "Registro de evolución del paciente durante la consulta",
+                "Orden de Imagenología",
+                "Solicitud de estudios radiológicos y de diagnóstico por imagen.",
                 Map.of(
-                        "motivo_consulta", new FieldConfig(TEXTAREA, true, "Motivo de Consulta", 1),
-                        "presion_arterial", new FieldConfig(TEXT, false, "Presión Arterial", 2),
-                        "diagnostico", new FieldConfig(TEXTAREA, false, "Diagnóstico", 3)
+                        "diagnostico_principal", new FieldConfig(TEXTAREA, true, "Diagnóstico Principal", 1),
+                        "estudio_solicitado",
+                        new FieldConfig(TEXT, true, "Estudio Solicitado (Ej. Radiografía de Tórax)", 2),
+                        "indicacion_clinica",
+                        new FieldConfig(TEXTAREA, true, "Indicación Clínica / Motivo del Estudio", 3),
+                        "notas_adicionales", new FieldConfig(TEXTAREA, false, "Notas Adicionales", 4)),
+                tenant));
+        templateRepository.save(buildTemplate(
+                "Nota de Alta",
+                "Resumen oficial de la evolución, tratamiento y recomendaciones al momento de la salida del paciente.",
+                Map.ofEntries(
+                        Map.entry("fecha_ingreso", new FieldConfig(DATE, true, "Fecha de Ingreso", 1)),
+                        Map.entry("fecha_alta", new FieldConfig(DATE, true, "Fecha de Alta", 2)),
+
+                        Map.entry("diagnostico_principal", new FieldConfig(TEXT, true, "Diagnóstico Principal", 3)),
+                        Map.entry("diagnostico_alta", new FieldConfig(TEXT, true, "Diagnóstico de Alta", 4)),
+                        Map.entry("diagnosticos_secundarios", new FieldConfig(TEXTAREA, false, "Diagnósticos Secundarios", 5)),
+
+                        Map.entry("procedimientos_realizados", new FieldConfig(TEXTAREA, false, "Procedimientos Realizados", 6)),
+                        Map.entry("evolucion_clinica", new FieldConfig(TEXTAREA, true, "Evolución Clínica", 7)),
+                        Map.entry("resumen_tratamiento", new FieldConfig(TEXTAREA, true, "Resumen del Tratamiento", 8)),
+                        Map.entry("medicinas_alta", new FieldConfig(TEXTAREA, true, "Medicinas al Alta", 9)),
+
+                        Map.entry("restricciones_actividad", new FieldConfig(TEXTAREA, false, "Restricciones de Actividad", 10)),
+                        Map.entry("actividades_permitidas", new FieldConfig(TEXTAREA, false, "Actividades Permitidas", 11)),
+                        Map.entry("restricciones_dieteticas", new FieldConfig(TEXTAREA, false, "Restricciones Dietéticas", 12)),
+                        Map.entry("cuidados_heridas", new FieldConfig(TEXTAREA, false, "Cuidados de Heridas", 13)),
+
+                        Map.entry("instrucciones_seguimiento", new FieldConfig(TEXTAREA, true, "Instrucciones de Seguimiento", 14)),
+                        Map.entry("fecha_recomendada_retorno", new FieldConfig(DATE, false, "Fecha Recomendada para Retorno", 15))
                 ),
                 tenant
         ));
 
-        templateRepository.save(buildTemplate(
-    "Ficha de Ingreso",
-    "Datos básicos de admisión",
-    Map.of(
-        "tipo_sangre", new FieldConfig(
-            SELECT, 
-            true, 
-            "Grupo Sanguíneo", 
-            1,
-            Map.of(
-                "O_POS", "O Positivo",
-                "O_NEG", "O Negativo",
-                "A_POS", "A Positivo",
-                "B_POS", "B Positivo"
-            )
-        ),
-        "observaciones", new FieldConfig(TEXTAREA, false, "Notas", 2)
-    ),
-    tenant
-));
-
-        log.info(">>> TemplateDataSeeder: 3 plantillas creadas exitosamente para el tenant '{}'.", slug);
+        log.info(">>> TemplateDataSeeder: plantillas predefinidas creadas exitosamente para el tenant '{}'.", tenant.getSlug());
     }
 
     private DocumentTemplate buildTemplate(String name, String description,

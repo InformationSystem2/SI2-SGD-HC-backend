@@ -39,5 +39,8 @@ out/
 .env
 security-test.http
 
+uploads/
+
+
 #Brayan
 archivos_contexto

@@ -1,5 +1,8 @@
 package com.sgd_hc;
 
+import com.sgd_hc.patients.entity.Gender;
+import com.sgd_hc.patients.entity.Patient;
+import com.sgd_hc.patients.repository.PatientRepository;
 import com.sgd_hc.tenants.entity.SubscriptionPlan;
 import com.sgd_hc.tenants.entity.SubscriptionStatus;
 import com.sgd_hc.tenants.entity.Tenant;
@@ -13,6 +16,7 @@ import com.sgd_hc.users.repository.RoleRepository;
 import com.sgd_hc.users.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import net.datafaker.Faker;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -24,6 +28,7 @@ import org.springframework.beans.factory.annotation.Value;
 import java.time.LocalDate;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
@@ -37,6 +42,7 @@ public class DataInitializer implements ApplicationRunner {
     private final RoleRepository      roleRepository;
     private final PermissionRepository permissionRepository;
     private final PasswordEncoder     passwordEncoder;
+    private final PatientRepository   patientRepository;
 
     @Value("${app.seed.system.slug}")     private String systemSlug;
     @Value("${app.seed.system.name}")     private String systemName;
@@ -64,6 +70,7 @@ public class DataInitializer implements ApplicationRunner {
 
         try {
             Tenant defaultTenant = setupDefaultTenant();
+            Tenant secondTenant  = setupSecondTenant();
             Tenant hqCoreTenant = tenantRepository.findBySlug(systemSlug)
                     .orElseThrow(() -> new IllegalStateException("Tenant maestro no encontrado: " + systemSlug));
 
@@ -111,8 +118,12 @@ public class DataInitializer implements ApplicationRunner {
 
             setupUser(systemUsername, systemEmail, systemFirstName, systemLastName, systemPassword, DocumentType.CI, systemNationalId, superuserRole, hqCoreTenant);
             setupUser(defaultUsername, defaultEmail, defaultFirstName, defaultLastName, defaultPassword, DocumentType.CI, defaultNationalId, adminRole,     defaultTenant);
+            setupUser("admin.sur", "admin@clinicasur.com", "Admin", "Sur", "admin123", DocumentType.CI, "2222222", adminRole, secondTenant);
 
-            log.info(">>> DataInitializer fuser_notification_preferencesinalizado correctamente.");
+            seedPatients(defaultTenant);
+            seedPatients(secondTenant);
+
+            log.info(">>> DataInitializer finalizado correctamente.");
         } finally {
             // HIGIENE DE CÓDIGO: Asegurar siempre la limpieza del ThreadLocal, incluso en la inicialización
             TenantContext.clear();
@@ -152,6 +163,22 @@ public class DataInitializer implements ApplicationRunner {
         });
     }
 
+    private Tenant setupSecondTenant() {
+        return tenantRepository.findBySlug("clinica-sur").orElseGet(() -> {
+            log.info(">>> Creando segundo tenant 'clinica-sur'...");
+            return tenantRepository.saveAndFlush(Tenant.builder()
+                    .name("Clínica del Sur (Demo)")
+                    .slug("clinica-sur")
+                    .email("admin@clinicasur.com")
+                    .phone("+591-765-4321")
+                    .address("Avenida Radial 26 #456")
+                    .subscriptionPlan(SubscriptionPlan.PRO)
+                    .subscriptionStatus(SubscriptionStatus.ACTIVE)
+                    .subscriptionStartDate(LocalDate.now())
+                    .build());
+        });
+    }
+
     private void setupUser(String username, String email, String first, String last,
                            String pass, DocumentType docType, String docNum,
                            Role role, Tenant tenant) {
@@ -183,6 +210,45 @@ public class DataInitializer implements ApplicationRunner {
         }
     }
 
+    private void seedPatients(Tenant tenant) {
+        long existing = patientRepository.countByTenant(tenant);
+        if (existing >= 50) {
+            log.info(">>> Ya existen {} pacientes para el tenant '{}', se omite el seed.", existing, tenant.getSlug());
+            return;
+        }
+
+        Faker faker = new Faker(new Locale("es"));
+        Gender[] genders = Gender.values();
+        DocumentType[] docTypes = { DocumentType.CI, DocumentType.PASAPORTE };
+        int toCreate = (int) (50 - existing);
+
+        log.info(">>> Creando {} pacientes de prueba para tenant '{}' con Datafaker...", toCreate, tenant.getSlug());
+        for (int i = 0; i < toCreate; i++) {
+            Gender gender = genders[faker.random().nextInt(genders.length)];
+            String firstName = faker.name().firstName();
+
+            String docNumber;
+            do {
+                docNumber = String.valueOf(faker.number().numberBetween(1000000L, 9999999L));
+            } while (patientRepository.findByDocumentNumber(docNumber).isPresent());
+
+            Patient patient = Patient.builder()
+                    .firstName(firstName)
+                    .lastName(faker.name().lastName())
+                    .documentType(docTypes[faker.random().nextInt(docTypes.length)])
+                    .documentNumber(docNumber)
+                    .gender(gender)
+                    .birthDate(faker.timeAndDate().birthday(1, 90))
+                    .phone(faker.phoneNumber().cellPhone())
+                    .address(faker.address().fullAddress())
+                    .tenant(tenant)
+                    .build();
+
+            patientRepository.save(patient);
+        }
+        log.info(">>> Seed de pacientes completado para tenant '{}'.", tenant.getSlug());
+    }
+
     private Set<Permission> createDefaultPermissions() {
         List<String[]> definitions = List.of(
             new String[]{"USER_READ",         "USERS",       "READ"},
@@ -209,9 +275,14 @@ public class DataInitializer implements ApplicationRunner {
             new String[]{"TEMPLATE_CREATE",   "TEMPLATES",   "CREATE"},
             new String[]{"TEMPLATE_UPDATE",   "TEMPLATES",   "UPDATE"},
             new String[]{"TEMPLATE_DELETE",   "TEMPLATES",   "DELETE"},
-
-            new String[]{"DICOM_READ",        "DICOM",       "READ"},
-            new String[]{"DICOM_CREATE",      "DICOM",       "CREATE"}
+            new String[]{"REPORT_READ",       "REPORTS",     "READ"},
+            new String[]{"REPORT_CREATE",     "REPORTS",     "CREATE"},
+            new String[]{"REPORT_UPDATE",     "REPORTS",     "UPDATE"},
+            new String[]{"REPORT_DELETE",     "REPORTS",     "DELETE"},
+            new String[]{"DICOM_READ",       "DICOM",     "READ"},
+            new String[]{"DICOM_CREATE",     "DICOM",     "CREATE"},
+            new String[]{"DICOM_UPDATE",     "DICOM",     "UPDATE"},
+            new String[]{"DICOM_DELETE",     "DICOM",     "DELETE"}
         );
 
         Set<String> existingNames = new HashSet<>();
