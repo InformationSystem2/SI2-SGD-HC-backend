@@ -39,6 +39,9 @@ public class Tenant extends RootEntity {
     @Column(length = 200)
     private String address;
 
+    @Column(name = "logo_url", length = 500)
+    private String logoUrl;
+
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "settings", columnDefinition = "jsonb")
     private Map<String, Object> settings;
@@ -55,4 +58,12 @@ public class Tenant extends RootEntity {
 
     @Column(nullable = false)
     private LocalDate subscriptionStartDate;
+
+    public boolean isSuspended() {
+        return subscriptionStatus == SubscriptionStatus.SUSPENDED;
+    }
+
+    public boolean isActive() {
+        return subscriptionStatus == SubscriptionStatus.ACTIVE;
+    }
 }

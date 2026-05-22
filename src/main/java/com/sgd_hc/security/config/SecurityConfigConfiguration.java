@@ -39,6 +39,8 @@ public class SecurityConfigConfiguration {
             "/api/auth/**",
             "/api/public/**",
             "/api/tenants/public/**",
+            "/api/storage/**",
+            "/api/branding",            
             "/api/documents/onlyoffice/callback",
             "/api/documents/onlyoffice/empty-doc",
             "/v3/api-docs/**",

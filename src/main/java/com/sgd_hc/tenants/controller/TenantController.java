@@ -1,9 +1,6 @@
 package com.sgd_hc.tenants.controller;
 
-import com.sgd_hc.tenants.dto.TenantPaymentRequestDto;
-import com.sgd_hc.tenants.dto.TenantRegisterRequestDto;
-import com.sgd_hc.tenants.dto.TenantResponseDto;
-import com.sgd_hc.tenants.dto.TenantUpdateDto;
+import com.sgd_hc.tenants.dto.*;
 import com.sgd_hc.tenants.service.TenantService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -12,7 +9,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -34,53 +30,120 @@ public class TenantController {
         return ResponseEntity.ok(tenantService.checkSlug(slug));
     }
 
+    @PostMapping("/public/init-session")
+    public ResponseEntity<TenantSessionResponseDto> initSession(
+            @Valid @RequestBody TenantInitSessionDto dto) {
+        return ResponseEntity.ok(tenantService.initSession(dto));
+    }
+
     @PostMapping("/public/register")
     public ResponseEntity<Map<String, Object>> register(
             @Valid @RequestBody TenantRegisterRequestDto dto) {
-        try {
-            return ResponseEntity.status(HttpStatus.CREATED).body(tenantService.startRegistration(dto));
-        } catch (IllegalArgumentException e) {
-            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
-        }
+        return ResponseEntity.status(HttpStatus.CREATED).body(tenantService.startRegistration(dto));
     }
 
     @PostMapping("/public/pay")
     public ResponseEntity<Map<String, Object>> pay(
             @Valid @RequestBody TenantPaymentRequestDto dto) {
-        try {
-            return ResponseEntity.ok(tenantService.processPayment(dto));
-        } catch (IllegalArgumentException | IllegalStateException e) {
-            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
-        }
+        return ResponseEntity.ok(tenantService.processPayment(dto));
     }
 
-    // ── GESTIÓN ADMINISTRATIVA (Requiere ROLE_SUPERUSER) ──────────────────────
+    // ── SETTINGS (por slug - header X-Tenant-ID) ────────────────────────────
 
-    @GetMapping
-    @PreAuthorize("hasAuthority('ROLE_SUPERUSER')")
-    public ResponseEntity<List<TenantResponseDto>> getAllTenants() {
-        return ResponseEntity.ok(tenantService.getAllTenants());
+    @GetMapping("/current/settings")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN', 'ROLE_SUPERUSER')")
+    public ResponseEntity<Map<String, Object>> getSettingsBySlug(
+            @RequestHeader(value = "X-Tenant-ID", required = false) String tenantSlug) {
+        return ResponseEntity.ok(tenantService.getSettingsBySlug(tenantSlug));
     }
 
-    @GetMapping("/{id}")
-    @PreAuthorize("hasAuthority('ROLE_SUPERUSER')")
-    public ResponseEntity<TenantResponseDto> getTenantById(@PathVariable UUID id) {
-        try {
-            return ResponseEntity.ok(tenantService.getTenantById(id));
-        } catch (IllegalArgumentException e) {
-            return ResponseEntity.notFound().build();
-        }
+    @PutMapping("/current/settings")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN', 'ROLE_SUPERUSER')")
+    public ResponseEntity<Map<String, Object>> updateSettingsBySlug(
+            @RequestHeader(value = "X-Tenant-ID", required = true) String tenantSlug,
+            @RequestBody Map<String, Object> settings) {
+        return ResponseEntity.ok(tenantService.updateSettingsBySlug(tenantSlug, settings));
     }
 
-    @PutMapping("/{id}")
+    // ── INFORMACIÓN BÁSICA DEL TENANT (por slug) ────────────────────────────
+
+    @GetMapping("/current/info")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN', 'ROLE_SUPERUSER')")
+    public ResponseEntity<TenantInfoDto> getTenantInfo(
+            @RequestHeader(value = "X-Tenant-ID", required = true) String tenantSlug) {
+        return ResponseEntity.ok(tenantService.getTenantInfoBySlug(tenantSlug));
+    }
+
+    @PutMapping("/current/info")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN', 'ROLE_SUPERUSER')")
+    public ResponseEntity<TenantInfoDto> updateTenantInfo(
+            @RequestHeader(value = "X-Tenant-ID", required = true) String tenantSlug,
+            @RequestBody Map<String, Object> data) {
+        return ResponseEntity.ok(tenantService.updateTenantBasicInfo(tenantSlug, data));
+    }
+
+    @GetMapping("/current/stats")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN', 'ROLE_SUPERUSER')")
+    public ResponseEntity<TenantStatsDto> getTenantStats(
+            @RequestHeader(value = "X-Tenant-ID", required = true) String tenantSlug) {
+        return ResponseEntity.ok(tenantService.getTenantStats(tenantSlug));
+    }
+
+    // ── SUSCRIPCIÓN: Renovación y Cambio de Plan ─────────────────────────────
+
+    @PostMapping("/current/renew")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN', 'ROLE_SUPERUSER')")
+    public ResponseEntity<RenewSubscriptionResponseDto> renewSubscription(
+            @RequestHeader(value = "X-Tenant-ID", required = true) String tenantSlug,
+            @RequestBody String plan) {
+        return ResponseEntity.ok(tenantService.renewSubscription(tenantSlug, plan));
+    }
+
+    @PostMapping("/current/change-plan")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN', 'ROLE_SUPERUSER')")
+    public ResponseEntity<ChangePlanResponseDto> changePlan(
+            @RequestHeader(value = "X-Tenant-ID", required = true) String tenantSlug,
+            @RequestBody String newPlan) {
+        return ResponseEntity.ok(tenantService.changePlan(tenantSlug, newPlan));
+    }
+
+    // ── GESTIÓN SUPERADMIN - HU-17 (Listado, Detalle, Suspensión, Eliminación) ──
+
+    @GetMapping("/admin/list")
     @PreAuthorize("hasAuthority('ROLE_SUPERUSER')")
-    public ResponseEntity<TenantResponseDto> updateTenant(
+    public ResponseEntity<PageResponseDto<TenantListItemDto>> getTenantsPaged(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(required = false) String search
+    ) {
+        return ResponseEntity.ok(tenantService.getTenantsPaged(page, size, search));
+    }
+
+    @GetMapping("/admin/{id}")
+    @PreAuthorize("hasAuthority('ROLE_SUPERUSER')")
+    public ResponseEntity<TenantDetailDto> getTenantDetails(@PathVariable UUID id) {
+        return ResponseEntity.ok(tenantService.getTenantDetails(id));
+    }
+
+    @PutMapping("/admin/{id}/status")
+    @PreAuthorize("hasAuthority('ROLE_SUPERUSER')")
+    public ResponseEntity<TenantDetailDto> updateTenantStatus(
             @PathVariable UUID id,
-            @Valid @RequestBody TenantUpdateDto dto) {
-        try {
-            return ResponseEntity.ok(tenantService.updateTenant(id, dto));
-        } catch (IllegalArgumentException e) {
-            return ResponseEntity.notFound().build();
+            @RequestBody String action) {
+        return ResponseEntity.ok(tenantService.updateTenantStatus(id, action));
+    }
+
+    @DeleteMapping("/admin/{id}")
+    @PreAuthorize("hasAuthority('ROLE_SUPERUSER')")
+    public ResponseEntity<Map<String, String>> deleteTenant(
+            @PathVariable UUID id,
+            @RequestParam(required = false) String confirmText) {
+        if (confirmText == null || confirmText.isBlank()) {
+            return ResponseEntity.badRequest().body(Map.of(
+                    "error", "Para eliminar un tenant se requiere escribir el nombre del tenant para confirmar."
+            ));
         }
+        tenantService.hardDeleteTenant(id, confirmText);
+        return ResponseEntity.ok(Map.of("message", "Tenant eliminado permanentemente."));
     }
 }
