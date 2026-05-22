@@ -5,6 +5,7 @@ package com.sgd_hc.documents.repository;
 import com.sgd_hc.documents.entity.Document;
 import com.sgd_hc.documents.entity.DocumentStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -97,4 +98,8 @@ public interface DocumentRepository extends JpaRepository<Document, UUID> {
             @Param("fechaDesde") String fechaDesde,
             @Param("fechaHasta") String fechaHasta,
             Pageable pageable);
+
+    @Modifying
+    @Query(value = "DELETE FROM documents WHERE tenant_id = :tenantId", nativeQuery = true)
+    void deleteAllByTenantId(@Param("tenantId") UUID tenantId);            
 }
