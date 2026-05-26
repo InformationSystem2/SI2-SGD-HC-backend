@@ -21,25 +21,29 @@ import com.sgd_hc.users.entity.User;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.core.io.Resource;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.http.MediaTypeFactory;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import com.sgd_hc.documents.dto.OcrResultDto;
 import com.sgd_hc.documents.entity.DocumentOcrMetadata;
 import com.sgd_hc.documents.repository.DocumentOcrMetadataRepository;
+import org.springframework.util.MimeType;
+
+import java.io.InputStream;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.time.LocalDateTime;
 
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class DocumentService {
@@ -52,10 +56,10 @@ public class DocumentService {
     private final TenantResolverService      tenantResolverService;
     private final OcrClientService          ocrClientService;
     private final DocumentOcrMetadataRepository ocrMetadataRepository;
+    private final FileStorageService        fileStorageService;
 
-    @Value("${storage.upload-dir:uploads}")
-    private String uploadDir;
-    // ── Documento basado en plantilla ────────────────────────────────────────
+
+    // ── Documento basado en plaantilla ────────────────────────────────────────
 
     @Transactional
     public DocumentResponseDto create(DocumentRequestDto dto) {
@@ -178,7 +182,7 @@ public class DocumentService {
     }
 
     private User currentUser() {
-        Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        Object principal = Objects.requireNonNull(SecurityContextHolder.getContext().getAuthentication()).getPrincipal();
         if (principal instanceof SecurityUser su)
             return su.getUser();
         throw new IllegalStateException("No se pudo determinar el usuario autenticado");
@@ -205,15 +209,17 @@ public class DocumentService {
         if (doc.getFileUrl() == null || doc.getFileUrl().isBlank())
             throw new IllegalStateException("El documento no tiene archivo físico para procesar");
 
-        // Leer el archivo desde disco
+        // Leer el archivo utilizando FileStorageService
         try {
-            Path filePath = Paths.get(uploadDir)
-                    .resolve(doc.getFileUrl().replace("/uploads/", ""))
-                    .toAbsolutePath().normalize();
-            byte[] bytes = Files.readAllBytes(filePath);
+            Resource resource = fileStorageService.loadAsResource(doc.getFileUrl());
+            byte[] bytes;
+            try (InputStream inputStream = resource.getInputStream()) {
+                bytes = inputStream.readAllBytes();
+            }
 
-            String contentType = Files.probeContentType(filePath);
-            if (contentType == null) contentType = "application/octet-stream";
+            String contentType = MediaTypeFactory.getMediaType(doc.getFileUrl())
+                    .map(MimeType::toString)
+                    .orElse("application/octet-stream");
 
             OcrResultDto result = ocrClientService.extract(bytes, contentType);
 
