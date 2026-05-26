@@ -40,6 +40,11 @@ public class FileStorageService {
     @PostConstruct
     public void init() {
         if (StringUtils.hasText(connectionString)) {
+            // Clean connectionString by removing surrounding double quotes if present
+            connectionString = connectionString.trim();
+            if (connectionString.startsWith("\"") && connectionString.endsWith("\"")) {
+                connectionString = connectionString.substring(1, connectionString.length() - 1);
+            }
             try {
                 this.blobContainerClient = new BlobServiceClientBuilder()
                         .connectionString(connectionString)
