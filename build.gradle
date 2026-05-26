@@ -82,3 +82,13 @@ tasks.withType(Javadoc) {
     // Opcional: Esto evita que Javadoc falle si te falta documentar algún parámetro
     options.addStringOption('Xdoclint:none', '-quiet') 
 }
+
+tasks.named('bootRun') {
+    if (project.hasProperty('envVars')) {
+        project.envVars.each { key, val ->
+            // Quitar comillas si están presentes en .env
+            def cleanVal = val.replaceAll(/^"|"$/, "")
+            environment key, cleanVal
+        }
+    }
+}
