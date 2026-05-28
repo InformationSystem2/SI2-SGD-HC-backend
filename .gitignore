@@ -40,4 +40,5 @@ out/
 security-test.http
 
 uploads/
+https:/
 run.log
