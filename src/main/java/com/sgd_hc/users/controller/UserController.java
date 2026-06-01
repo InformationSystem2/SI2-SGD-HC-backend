@@ -10,7 +10,11 @@ import org.springframework.web.bind.annotation.*;
 import com.sgd_hc.users.dto.UserCreateDto;
 import com.sgd_hc.users.dto.UserResponseDto;
 import com.sgd_hc.users.dto.UserUpdateDto;
+import com.sgd_hc.users.dto.RoleAttributePermissionDto;
 import com.sgd_hc.users.service.UserService;
+import com.sgd_hc.security.details.SecurityUser;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import java.util.Set;
 
 import lombok.RequiredArgsConstructor;
 
@@ -50,5 +54,13 @@ public class UserController {
     public ResponseEntity<Void> userDelete(@PathVariable UUID id) {
         userService.deleteUser(id);
         return ResponseEntity.noContent().build();
+    }
+
+    @GetMapping("/me/abac")
+    public ResponseEntity<Set<RoleAttributePermissionDto>> getMyAbacRules(@AuthenticationPrincipal SecurityUser securityUser) {
+        if (securityUser == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+        return ResponseEntity.ok(userService.getUserAttributePermissions(securityUser.getUser().getId()));
     }
 }

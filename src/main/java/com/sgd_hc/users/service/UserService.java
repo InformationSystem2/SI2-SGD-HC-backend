@@ -13,7 +13,9 @@ import com.sgd_hc.tenants.service.TenantResolverService;
 import com.sgd_hc.users.dto.UserCreateDto;
 import com.sgd_hc.users.dto.UserResponseDto;
 import com.sgd_hc.users.dto.UserUpdateDto;
+import com.sgd_hc.users.dto.RoleAttributePermissionDto;
 import com.sgd_hc.users.entity.Role;
+import com.sgd_hc.users.entity.RoleAttributePermission;
 import com.sgd_hc.users.entity.User;
 import com.sgd_hc.users.mapper.UserMapper;
 import com.sgd_hc.users.repository.RoleRepository;
@@ -86,6 +88,28 @@ public class UserService {
     @Transactional
     public void deleteUser(UUID id) {
         userRepository.deleteById(id);
+    }
+
+    @Transactional(readOnly = true)
+    public Set<RoleAttributePermissionDto> getUserAttributePermissions(UUID id) {
+        User user = findOrThrow(id);
+        Set<RoleAttributePermissionDto> dtos = new HashSet<>();
+        
+        if (user.getRoles() != null) {
+            for (Role role : user.getRoles()) {
+                if (role.getAttributePermissions() != null) {
+                    for (RoleAttributePermission attr : role.getAttributePermissions()) {
+                        dtos.add(RoleAttributePermissionDto.builder()
+                            .entityName(attr.getEntityName())
+                            .attributeName(attr.getAttributeName())
+                            .accessLevel(attr.getAccessLevel())
+                            .build()
+                        );
+                    }
+                }
+            }
+        }
+        return dtos;
     }
 
     private User findOrThrow(UUID id) {

@@ -8,6 +8,7 @@ import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.sgd_hc.security.config.tenant.TenantContext;
 import com.sgd_hc.tenants.service.TenantResolverService;
 import com.sgd_hc.users.dto.RoleCreateDto;
 import com.sgd_hc.users.dto.RoleResponseDto;
@@ -45,9 +46,15 @@ public class RoleService {
 
     @Transactional(readOnly = true)
     public List<RoleResponseDto> getAllRoles() {
-        return roleRepository.findAll().stream()
-                .map(roleMapper::toResponseDto)
-                .toList();
+        // Bypass tenant filter to get all active roles visible system-wide
+        TenantContext.setBypassFilter(true);
+        try {
+            return roleRepository.findByIsActiveTrue().stream()
+                    .map(roleMapper::toResponseDto)
+                    .toList();
+        } finally {
+            TenantContext.setBypassFilter(false);
+        }
     }
 
     @Transactional

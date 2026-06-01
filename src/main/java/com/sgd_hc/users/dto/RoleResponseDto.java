@@ -11,5 +11,6 @@ public record RoleResponseDto(
     String name,
     String description,
     Boolean isActive,
-    Set<UUID> permissionsIds
+    Set<UUID> permissionsIds,
+    Set<RoleAttributePermissionDto> attributePermissions
 ) {}

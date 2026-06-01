@@ -39,4 +39,9 @@ public class Role extends BaseEntity {
             ))
     private Set<Permission> permissions = new LinkedHashSet<>();
 
+    @Builder.Default
+    @OneToMany(mappedBy = "role", cascade = CascadeType.ALL, orphanRemoval = true)
+    private Set<RoleAttributePermission> attributePermissions = new LinkedHashSet<>();
+
+
 }

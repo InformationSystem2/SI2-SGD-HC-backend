@@ -11,8 +11,11 @@ import com.sgd_hc.tenants.repository.TenantRepository;
 import com.sgd_hc.users.entity.DocumentType;
 import com.sgd_hc.users.entity.Permission;
 import com.sgd_hc.users.entity.Role;
+import com.sgd_hc.users.entity.RoleAttributePermission;
+import com.sgd_hc.users.entity.AccessLevel;
 import com.sgd_hc.users.entity.User;
 import com.sgd_hc.users.repository.PermissionRepository;
+import com.sgd_hc.users.repository.RoleAttributePermissionRepository;
 import com.sgd_hc.users.repository.RoleRepository;
 import com.sgd_hc.users.repository.UserRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -46,6 +49,7 @@ public class DataInitializer implements ApplicationRunner {
     private final UserRepository      userRepository;
     private final RoleRepository      roleRepository;
     private final PermissionRepository permissionRepository;
+    private final RoleAttributePermissionRepository roleAttributePermissionRepository;
     private final PasswordEncoder     passwordEncoder;
     private final ObjectMapper        objectMapper;
     private final PatientRepository   patientRepository;
@@ -120,6 +124,8 @@ public class DataInitializer implements ApplicationRunner {
                     roleRepository.saveAndFlush(role);
                     log.info(">>> permisos actualizados para rol: {}", roleName);
                 }
+
+                setupAttributePermissions(role, roleName);
             }
 
             Role superuserRole = roleRepository.findByNameAndTenantId("ROLE_SUPERUSER", hqCoreTenant.getId()).orElseThrow();
@@ -136,6 +142,61 @@ public class DataInitializer implements ApplicationRunner {
         } finally {
             // HIGIENE DE CÓDIGO: Asegurar siempre la limpieza del ThreadLocal, incluso en la inicialización
             TenantContext.clear();
+        }
+    }
+
+    private void setupAttributePermissions(Role role, String roleName) {
+        if (role == null) return;
+        List<String[]> attributes = List.of(
+            new String[]{"Patient", "firstName"},
+            new String[]{"Patient", "lastName"},
+            new String[]{"Patient", "documentType"},
+            new String[]{"Patient", "documentNumber"},
+            new String[]{"Patient", "birthDate"},
+            new String[]{"Patient", "gender"},
+            new String[]{"Patient", "phone"},
+            new String[]{"Patient", "address"},
+            new String[]{"User", "firstName"},
+            new String[]{"User", "lastName"},
+            new String[]{"User", "email"},
+            new String[]{"User", "phone"}
+        );
+
+        for (String[] attr : attributes) {
+            String entity = attr[0];
+            String field = attr[1];
+
+            AccessLevel level = AccessLevel.EDITABLE;
+
+            if (roleName.equals("ROLE_MEDICO")) {
+                if (entity.equals("Patient")) {
+                    level = (field.equals("phone") || field.equals("address")) ? AccessLevel.EDITABLE : AccessLevel.READ_ONLY;
+                } else if (entity.equals("User")) {
+                    level = AccessLevel.READ_ONLY;
+                }
+            } else if (roleName.equals("ROLE_DIRECTOR")) {
+                level = AccessLevel.READ_ONLY;
+            } else if (roleName.equals("ROLE_ARCHIVO")) {
+                if (entity.equals("User")) {
+                    level = AccessLevel.READ_ONLY;
+                } else {
+                    level = AccessLevel.EDITABLE;
+                }
+            }
+
+            boolean exists = roleAttributePermissionRepository.findByRoleId(role.getId()).stream()
+                    .anyMatch(p -> p.getEntityName().equals(entity) && p.getAttributeName().equals(field));
+
+            if (!exists) {
+                roleAttributePermissionRepository.save(
+                    RoleAttributePermission.builder()
+                        .role(role)
+                        .entityName(entity)
+                        .attributeName(field)
+                        .accessLevel(level)
+                        .build()
+                );
+            }
         }
     }
 
@@ -303,6 +364,7 @@ public class DataInitializer implements ApplicationRunner {
             new String[]{"DICOM_CREATE",     "DICOM",     "CREATE"},
             new String[]{"DICOM_UPDATE",     "DICOM",     "UPDATE"},
             new String[]{"DICOM_DELETE",     "DICOM",     "DELETE"}
+            
         );
 
         Set<String> existingNames = new HashSet<>();
