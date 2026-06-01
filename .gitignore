@@ -38,3 +38,5 @@ out/
 
 .env
 security-test.http
+https:/
+uploads/
