@@ -1,3 +1,7 @@
 /gradlew text eol=lf
 *.bat text eol=crlf
 *.jar binary
+
+
+# Scripts shell: forzar LF para compatibilidad con Docker/Linux
+*.sh text eol=lf
