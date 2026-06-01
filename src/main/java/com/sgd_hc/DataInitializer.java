@@ -1,8 +1,27 @@
 package com.sgd_hc;
 
+import java.io.IOException;
+import java.time.LocalDate;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
+
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.ApplicationArguments;
+import org.springframework.boot.ApplicationRunner;
+import org.springframework.core.io.ClassPathResource;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sgd_hc.patients.entity.Gender;
 import com.sgd_hc.patients.entity.Patient;
 import com.sgd_hc.patients.repository.PatientRepository;
+import com.sgd_hc.security.config.tenant.TenantContext;
 import com.sgd_hc.tenants.config.TenantSettingsDefaults;
 import com.sgd_hc.tenants.entity.SubscriptionPlan;
 import com.sgd_hc.tenants.entity.SubscriptionStatus;
@@ -15,27 +34,10 @@ import com.sgd_hc.users.entity.User;
 import com.sgd_hc.users.repository.PermissionRepository;
 import com.sgd_hc.users.repository.RoleRepository;
 import com.sgd_hc.users.repository.UserRepository;
-import com.fasterxml.jackson.databind.ObjectMapper;
+
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import net.datafaker.Faker;
-import org.springframework.boot.ApplicationArguments;
-import org.springframework.boot.ApplicationRunner;
-import org.springframework.core.io.ClassPathResource;
-import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Transactional;
-import com.sgd_hc.security.config.tenant.TenantContext;
-import org.springframework.beans.factory.annotation.Value;
-
-import java.io.IOException;
-import java.time.LocalDate;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Set;
 
 @Slf4j
 @Component
@@ -131,6 +133,7 @@ public class DataInitializer implements ApplicationRunner {
 
             seedPatients(defaultTenant);
             seedPatients(secondTenant);
+            setupExtraTenants(adminRole);
 
             log.info(">>> DataInitializer finalizado correctamente.");
         } finally {
@@ -334,5 +337,35 @@ public class DataInitializer implements ApplicationRunner {
             if (p != null) permissions.add(p);
         }
         return permissions;
+    }
+    private void setupExtraTenants(Role adminRole) {
+        log.info(">>> Creando 13 clínicas extra para los gráficos del Dashboard...");
+        Faker faker = new Faker(new Locale("es"));
+        SubscriptionPlan[] planes = SubscriptionPlan.values();
+        SubscriptionStatus[] estados = SubscriptionStatus.values();
+
+        for (int i = 1; i <= 13; i++) {
+            String slug = "clinica-extra-" + i;
+            Tenant extraTenant = tenantRepository.findBySlug(slug).orElseGet(() -> {
+                return tenantRepository.saveAndFlush(Tenant.builder()
+                        .name(faker.company().name())
+                        .slug(slug)
+                        .email("admin@" + slug + ".com")
+                        .phone(faker.phoneNumber().cellPhone())
+                        .address(faker.address().fullAddress())
+                        .subscriptionPlan(planes[faker.random().nextInt(planes.length)])
+                        .subscriptionStatus(estados[faker.random().nextInt(estados.length)])
+                        .subscriptionStartDate(LocalDate.now().minusDays(faker.random().nextInt(1, 100)))
+                        .build());
+            });
+
+            // Creamos un admin real para esta clínica
+            setupUser("admin." + slug, "admin@" + slug + ".com", "Admin", "Clínica " + i,
+                      "admin123", DocumentType.CI, String.valueOf(faker.number().randomNumber(7, true)),
+                      adminRole, extraTenant);
+
+            // Sembrar pacientes reales (Spring Boot se encarga de crear 50)
+            seedPatients(extraTenant);
+        }
     }
 }
