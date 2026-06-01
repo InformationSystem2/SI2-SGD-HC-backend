@@ -253,7 +253,65 @@ done < <(find "$BACKUP_DIR" -maxdepth 1 \
 log "Archivos eliminados: $DELETED_COUNT"
 
 # ──────────────────────────────────────────────────────────────
-# SECCIÓN 6 — RESUMEN FINAL
+# SECCIÓN 6 — UPLOAD A AZURE BLOB STORAGE
+# ──────────────────────────────────────────────────────────────
+# Esta sección solo se ejecuta si AZURE_STORAGE_SAS_URL está definida.
+# Si la variable no está en el .env, los backups se guardan solo en local.
+#
+# Formato de AZURE_STORAGE_SAS_URL:
+#   https://<cuenta>.blob.core.windows.net/<contenedor>?<sas-token>
+#
+# El SAS Token debe tener permisos: Read, Write, Create (sobre Object/Blob).
+
+subir_a_azure() {
+    local archivo="$1"
+    local nombre_blob="$2"
+
+    # Separar la base URL (antes del ?) del token SAS (después del ?)
+    local base_url="${AZURE_STORAGE_SAS_URL%%\?*}"
+    local sas_token="${AZURE_STORAGE_SAS_URL#*\?}"
+
+    # URL final: base_url/nombre_blob?sas_token
+    local upload_url="${base_url}/${nombre_blob}?${sas_token}"
+
+    log "  Subiendo: $nombre_blob"
+
+    local http_code
+    http_code=$(curl -s -o /dev/null -w "%{http_code}" \
+        -X PUT \
+        -H "x-ms-blob-type: BlockBlob" \
+        --data-binary @"$archivo" \
+        "$upload_url")
+
+    if [ "$http_code" = "201" ]; then
+        log "  ✓ Azure OK: $nombre_blob (HTTP 201)"
+    else
+        log "  ✗ Azure FALLO: $nombre_blob (HTTP $http_code)"
+        # No abortamos el script — el backup local ya existe
+    fi
+}
+
+if [ -n "${AZURE_STORAGE_SAS_URL:-}" ]; then
+    log "--- AZURE: Subiendo backups a Azure Blob Storage ---"
+
+    # Subir el backup completo
+    if [ -f "$FULL_BACKUP_FILE" ]; then
+        subir_a_azure "$FULL_BACKUP_FILE" "$(basename "$FULL_BACKUP_FILE")"
+    fi
+
+    # Subir los backups por tenant generados en esta ejecución
+    for sql_file in "$BACKUP_DIR"/backup_tenant_*_${DATE}.sql; do
+        [ -f "$sql_file" ] && subir_a_azure "$sql_file" "$(basename "$sql_file")"
+    done
+
+    log "--- AZURE: Upload finalizado ---"
+else
+    log "AZURE_STORAGE_SAS_URL no configurada — backup solo local"
+fi
+
+
+# ──────────────────────────────────────────────────────────────
+# SECCIÓN 7 — RESUMEN FINAL
 # ──────────────────────────────────────────────────────────────
 log "═══════════════════════════════════════════════════════"
 log "Backup completado exitosamente"
