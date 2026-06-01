@@ -1,0 +1,24 @@
+# Backend Dockerfile for Development - Spring Boot with hot-reload
+FROM eclipse-temurin:26-jdk-alpine
+
+WORKDIR /app
+
+# Instalar curl para health checks
+RUN apk add --no-cache curl
+
+# Copy gradle files
+COPY gradle/ gradle/
+COPY gradlew gradlew.bat ./
+COPY build.gradle settings.gradle ./
+
+# Make gradle executable
+RUN chmod +x gradlew
+
+# Copy source code
+COPY src ./src
+
+# Expose port
+EXPOSE 8080
+
+# Run Spring Boot in development mode (hot-reload enabled)
+CMD ["./gradlew", "bootRun", "--no-daemon", "-Dspring-boot.run.jvmArguments=-Dfile.encoding=UTF-8"]

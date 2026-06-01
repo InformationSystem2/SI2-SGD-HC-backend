@@ -1,0 +1,39 @@
+steps:
+  # 1. Construir la imagen con arquitectura x86_64 para Cloud Run
+  - name: "gcr.io/cloud-builders/docker"
+    args:
+      - "build"
+      - "--platform"
+      - "linux/amd64"
+      - "-t"
+      - "southamerica-east1-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/si2-sgd-hc-backend:$COMMIT_SHA"
+      - "-f"
+      - "Dockerfile.deploy"
+      - "."
+
+  # 2. Push al repositorio regional (ahora sí lo encontrará)
+  - name: "gcr.io/cloud-builders/docker"
+    args:
+      - "push"
+      - "southamerica-east1-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/si2-sgd-hc-backend:$COMMIT_SHA"
+
+  # 3. Desplegar en Cloud Run en la misma región
+  - name: "gcr.io/google.com/cloudsdktool/cloud-sdk"
+    entrypoint: gcloud
+    args:
+      - "run"
+      - "deploy"
+      - "si2-sgd-hc-backend"
+      - "--image"
+      - "southamerica-east1-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/si2-sgd-hc-backend:$COMMIT_SHA"
+      - "--region"
+      - "southamerica-east1"
+      - "--platform"
+      - "managed"
+      - "--quiet"
+
+images:
+  - "southamerica-east1-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/si2-sgd-hc-backend:$COMMIT_SHA"
+
+options:
+  logging: CLOUD_LOGGING_ONLY

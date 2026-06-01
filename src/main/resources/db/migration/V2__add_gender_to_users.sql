@@ -1,2 +1,0 @@
--- This migration is now a no-op since gender was added to V1
--- Kept for backwards compatibility

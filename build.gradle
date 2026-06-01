@@ -7,9 +7,13 @@ plugins {
 group = 'com.sgd_hc'
 version = '0.0.1-SNAPSHOT'
 
+// Aplicamos el script que se encarga de leer el .env y exportar targetJavaVersion
+apply from: 'env.gradle'
+
 java {
 	toolchain {
-		languageVersion = JavaLanguageVersion.of(26)
+        // Convertimos el texto a número entero para que el compilador lo entienda
+		languageVersion = JavaLanguageVersion.of(targetJavaVersion as Integer)
 	}
 }
 
@@ -20,20 +24,28 @@ configurations {
 }
 
 repositories {
-	mavenCentral()
+    mavenCentral()
+    maven { url = uri("https://maven.dcm4che.org/") }
+    maven { url = uri("https://www.dcm4che.org/maven2/") }
+    // Repositorio donde vive weasis-core-img-bom
+    maven { url = uri("https://repo.maven.apache.org/maven2/") } // ya cubierto por mavenCentral
+    maven { url = uri("https://github.com/nroduit/mvn-repo/raw/master/") }
 }
 
 dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-flyway'
 	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+	implementation 'org.springframework.boot:spring-boot-starter-data-redis'
 	implementation 'org.springframework.boot:spring-boot-starter-security'
 	implementation 'org.springframework.boot:spring-boot-starter-webmvc'
 	implementation 'org.springframework.boot:spring-boot-starter-webservices'
 	implementation 'org.flywaydb:flyway-database-postgresql'
 	implementation 'org.springframework.boot:spring-boot-starter-restclient'
 	implementation 'org.springframework.boot:spring-boot-starter-validation'
+	implementation 'org.springframework:spring-aspects:7.0.6'
     implementation 'io.jsonwebtoken:jjwt-api:0.12.5'
-	compileOnly 'org.projectlombok:lombok'
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
+    compileOnly 'org.projectlombok:lombok'
 	developmentOnly 'org.springframework.boot:spring-boot-devtools'
 	runtimeOnly 'org.postgresql:postgresql'
     runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.12.5'
@@ -48,9 +60,35 @@ dependencies {
 	testImplementation 'org.springframework.boot:spring-boot-starter-webservices-test'
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
     implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.7.0'
+    implementation 'org.apache.poi:poi-ooxml:5.4.1'
+    implementation 'com.github.librepdf:openpdf:1.3.43'
+
+    implementation 'org.dcm4che:dcm4che-core:5.34.3'
+    implementation 'org.dcm4che:dcm4che-imageio:5.34.3'
+
+    implementation 'net.datafaker:datafaker:2.4.2'
+    implementation 'com.azure:azure-storage-blob:12.29.0'
 }
 
 tasks.named('test') {
 	useJUnitPlatform()
     enabled = false // Ignorar ejecución de tests para permitir el build sin base de datos
+}
+
+tasks.withType(Javadoc) {
+    options.encoding = 'UTF-8'
+    options.charSet = 'UTF-8'
+    options.docEncoding = 'UTF-8'
+    // Opcional: Esto evita que Javadoc falle si te falta documentar algún parámetro
+    options.addStringOption('Xdoclint:none', '-quiet') 
+}
+
+tasks.named('bootRun') {
+    if (project.hasProperty('envVars')) {
+        project.envVars.each { key, val ->
+            // Quitar comillas si están presentes en .env
+            def cleanVal = val.replaceAll(/^"|"$/, "")
+            environment key, cleanVal
+        }
+    }
 }
