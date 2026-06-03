@@ -1,7 +1,6 @@
 package com.sgd_hc.users.service;
 
 import java.util.List;
-import java.util.UUID;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -30,7 +29,7 @@ public class PermissionService {
     }
 
     @Transactional(readOnly = true)
-    public PermissionResponseDto getPermissionById(UUID id) {
+    public PermissionResponseDto getPermissionById(Long id) {
         return permissionMapper.toResponseDto(findPermissionOrThrow(id));
     }
 
@@ -42,7 +41,7 @@ public class PermissionService {
     }
 
     @Transactional
-    public PermissionResponseDto updatePermission(UUID id, PermissionUpdateDto dto) {
+    public PermissionResponseDto updatePermission(Long id, PermissionUpdateDto dto) {
         Permission existingPermission = findPermissionOrThrow(id);
 
         if (dto.name() != null)
@@ -53,18 +52,18 @@ public class PermissionService {
     }
 
     @Transactional
-    public void deletePermission(UUID id) {
+    public void deletePermission(Long id) {
         Permission permission = findPermissionOrThrow(id);
         permission.setIsActive(false);
         permissionRepository.save(permission);
     }
 
-    private Permission findPermissionOrThrow(UUID id) {
+    private Permission findPermissionOrThrow(Long id) {
         return permissionRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Permission not found with id: " + id));
     }
 
-    private void validateNameUniqueness(String name, UUID id) {
+    private void validateNameUniqueness(String name, Long id) {
         permissionRepository.findByName(name).ifPresent(p -> {
             if (id == null || !p.getId().equals(id))
                 throw new IllegalArgumentException("Permission name already exists: " + name);

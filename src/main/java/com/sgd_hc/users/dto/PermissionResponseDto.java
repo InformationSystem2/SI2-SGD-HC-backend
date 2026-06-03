@@ -6,7 +6,7 @@ import lombok.Builder;
 
 @Builder
 public record PermissionResponseDto(
-    UUID id,
+    Long id,
     String name,
     String module,
     String action,

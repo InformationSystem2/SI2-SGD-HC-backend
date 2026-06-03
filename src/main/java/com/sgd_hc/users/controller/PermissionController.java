@@ -1,7 +1,6 @@
 package com.sgd_hc.users.controller;
 
 import java.util.List;
-import java.util.UUID;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -23,32 +22,32 @@ public class PermissionController {
     private final PermissionService permissionService;
 
     @PostMapping
-    @PreAuthorize("hasAuthority('PERMISSION_CREATE')")
+    @PreAuthorize("hasAuthority('permission:create')")
     public ResponseEntity<PermissionResponseDto> createPermission(@RequestBody PermissionCreateDto dto) {
         return new ResponseEntity<>(permissionService.createPermission(dto), HttpStatus.CREATED);
     }
 
     @GetMapping
-    @PreAuthorize("hasAuthority('PERMISSION_READ')")
+    @PreAuthorize("hasAuthority('permission:read')")
     public ResponseEntity<List<PermissionResponseDto>> getAllPermissions() {
         return ResponseEntity.ok(permissionService.getAllPermissions());
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasAuthority('PERMISSION_READ')")
-    public ResponseEntity<PermissionResponseDto> getPermissionById(@PathVariable UUID id) {
+    @PreAuthorize("hasAuthority('permission:read')")
+    public ResponseEntity<PermissionResponseDto> getPermissionById(@PathVariable Long id) {
         return ResponseEntity.ok(permissionService.getPermissionById(id));
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasAuthority('PERMISSION_UPDATE')")
-    public ResponseEntity<PermissionResponseDto> updatePermission(@PathVariable UUID id, @RequestBody PermissionUpdateDto dto) {
+    @PreAuthorize("hasAuthority('permission:update')")
+    public ResponseEntity<PermissionResponseDto> updatePermission(@PathVariable Long id, @RequestBody PermissionUpdateDto dto) {
         return ResponseEntity.ok(permissionService.updatePermission(id, dto));
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasAuthority('PERMISSION_DELETE')")
-    public ResponseEntity<Void> deletePermission(@PathVariable UUID id) {
+    @PreAuthorize("hasAuthority('permission:delete')")
+    public ResponseEntity<Void> deletePermission(@PathVariable Long id) {
         permissionService.deletePermission(id);
         return ResponseEntity.noContent().build();
     }
