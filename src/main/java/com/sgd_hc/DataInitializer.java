@@ -12,6 +12,7 @@ import java.util.Set;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
@@ -42,33 +43,50 @@ import net.datafaker.Faker;
 @Slf4j
 @Component
 @RequiredArgsConstructor
+@ConditionalOnProperty(name = "app.seed.enabled", havingValue = "true", matchIfMissing = true)
 public class DataInitializer implements ApplicationRunner {
 
-    private final TenantRepository    tenantRepository;
-    private final UserRepository      userRepository;
-    private final RoleRepository      roleRepository;
+    private final TenantRepository tenantRepository;
+    private final UserRepository userRepository;
+    private final RoleRepository roleRepository;
     private final PermissionRepository permissionRepository;
-    private final PasswordEncoder     passwordEncoder;
-    private final ObjectMapper        objectMapper;
-    private final PatientRepository   patientRepository;
+    private final PasswordEncoder passwordEncoder;
+    private final ObjectMapper objectMapper;
+    private final PatientRepository patientRepository;
 
-    @Value("${app.seed.system.slug}")     private String systemSlug;
-    @Value("${app.seed.system.name}")     private String systemName;
-    @Value("${app.seed.system.username}") private String systemUsername;
-    @Value("${app.seed.system.password}") private String systemPassword;
-    @Value("${app.seed.system.email}")    private String systemEmail;
-    @Value("${app.seed.system.firstName}")  private String systemFirstName;
-    @Value("${app.seed.system.lastName}")   private String systemLastName;
-    @Value("${app.seed.system.nationalId}") private String systemNationalId;
+    @Value("${app.seed.system.slug}")
+    private String systemSlug;
+    @Value("${app.seed.system.name}")
+    private String systemName;
+    @Value("${app.seed.system.username}")
+    private String systemUsername;
+    @Value("${app.seed.system.password}")
+    private String systemPassword;
+    @Value("${app.seed.system.email}")
+    private String systemEmail;
+    @Value("${app.seed.system.firstName}")
+    private String systemFirstName;
+    @Value("${app.seed.system.lastName}")
+    private String systemLastName;
+    @Value("${app.seed.system.nationalId}")
+    private String systemNationalId;
 
-    @Value("${app.seed.default.slug}")     private String defaultSlug;
-    @Value("${app.seed.default.name}")     private String defaultName;
-    @Value("${app.seed.default.username}") private String defaultUsername;
-    @Value("${app.seed.default.password}") private String defaultPassword;
-    @Value("${app.seed.default.email}")    private String defaultEmail;
-    @Value("${app.seed.default.firstName}")  private String defaultFirstName;
-    @Value("${app.seed.default.lastName}")   private String defaultLastName;
-    @Value("${app.seed.default.nationalId}") private String defaultNationalId;
+    @Value("${app.seed.default.slug}")
+    private String defaultSlug;
+    @Value("${app.seed.default.name}")
+    private String defaultName;
+    @Value("${app.seed.default.username}")
+    private String defaultUsername;
+    @Value("${app.seed.default.password}")
+    private String defaultPassword;
+    @Value("${app.seed.default.email}")
+    private String defaultEmail;
+    @Value("${app.seed.default.firstName}")
+    private String defaultFirstName;
+    @Value("${app.seed.default.lastName}")
+    private String defaultLastName;
+    @Value("${app.seed.default.nationalId}")
+    private String defaultNationalId;
 
     @Override
     @Transactional
@@ -78,18 +96,18 @@ public class DataInitializer implements ApplicationRunner {
 
         try {
             Tenant defaultTenant = setupDefaultTenant();
-            Tenant secondTenant  = setupSecondTenant();
+            Tenant secondTenant = setupSecondTenant();
             Tenant hqCoreTenant = tenantRepository.findBySlug(systemSlug)
                     .orElseThrow(() -> new IllegalStateException("Tenant maestro no encontrado: " + systemSlug));
 
-            Set<Permission> allPermissions = createDefaultPermissions();
+            Set<Permission> allPermissions = new HashSet<>(permissionRepository.findAll());
 
             Map<String, String> rolesToCreate = Map.of(
                     "ROLE_SUPERUSER", "Superusuario con acceso total",
-                    "ROLE_ADMIN",     "Administrador con restricciones de borrado",
-                    "ROLE_MEDICO",    "Personal médico del sistema",
-                    "ROLE_ARCHIVO",   "Encargado de archivo histórico",
-                    "ROLE_DIRECTOR",  "Director del hospital"
+                    "ROLE_ADMIN", "Administrador con restricciones de borrado",
+                    "ROLE_MEDICO", "Personal médico del sistema",
+                    "ROLE_ARCHIVO", "Encargado de archivo histórico",
+                    "ROLE_DIRECTOR", "Director del hospital"
             );
 
             for (Map.Entry<String, String> entry : rolesToCreate.entrySet()) {
@@ -125,10 +143,10 @@ public class DataInitializer implements ApplicationRunner {
             }
 
             Role superuserRole = roleRepository.findByNameAndTenantId("ROLE_SUPERUSER", hqCoreTenant.getId()).orElseThrow();
-            Role adminRole     = roleRepository.findByNameAndTenantId("ROLE_ADMIN", hqCoreTenant.getId()).orElseThrow();
+            Role adminRole = roleRepository.findByNameAndTenantId("ROLE_ADMIN", hqCoreTenant.getId()).orElseThrow();
 
             setupUser(systemUsername, systemEmail, systemFirstName, systemLastName, systemPassword, DocumentType.CI, systemNationalId, superuserRole, hqCoreTenant);
-            setupUser(defaultUsername, defaultEmail, defaultFirstName, defaultLastName, defaultPassword, DocumentType.CI, defaultNationalId, adminRole,     defaultTenant);
+            setupUser(defaultUsername, defaultEmail, defaultFirstName, defaultLastName, defaultPassword, DocumentType.CI, defaultNationalId, adminRole, defaultTenant);
             setupUser("admin.sur", "admin@clinicasur.com", "Admin", "Sur", "admin123", DocumentType.CI, "2222222", adminRole, secondTenant);
 
             seedPatients(defaultTenant);
@@ -242,7 +260,7 @@ public class DataInitializer implements ApplicationRunner {
 
         Faker faker = new Faker(new Locale("es"));
         Gender[] genders = Gender.values();
-        DocumentType[] docTypes = { DocumentType.CI, DocumentType.PASAPORTE };
+        DocumentType[] docTypes = {DocumentType.CI, DocumentType.PASAPORTE};
         int toCreate = (int) (50 - existing);
 
         log.info(">>> Creando {} pacientes de prueba para tenant '{}' con Datafaker...", toCreate, tenant.getSlug());
@@ -272,72 +290,6 @@ public class DataInitializer implements ApplicationRunner {
         log.info(">>> Seed de pacientes completado para tenant '{}'.", tenant.getSlug());
     }
 
-    private Set<Permission> createDefaultPermissions() {
-        List<String[]> definitions = List.of(
-            new String[]{"USER_READ",         "USERS",       "READ"},
-            new String[]{"USER_CREATE",       "USERS",       "CREATE"},
-            new String[]{"USER_UPDATE",       "USERS",       "UPDATE"},
-            new String[]{"USER_DELETE",       "USERS",       "DELETE"},
-            new String[]{"ROLE_READ",         "ROLES",       "READ"},
-            new String[]{"ROLE_CREATE",       "ROLES",       "CREATE"},
-            new String[]{"ROLE_UPDATE",       "ROLES",       "UPDATE"},
-            new String[]{"ROLE_DELETE",       "ROLES",       "DELETE"},
-            new String[]{"PERMISSION_READ",   "PERMISSIONS", "READ"},
-            new String[]{"PERMISSION_CREATE", "PERMISSIONS", "CREATE"},
-            new String[]{"PERMISSION_UPDATE", "PERMISSIONS", "UPDATE"},
-            new String[]{"PERMISSION_DELETE", "PERMISSIONS", "DELETE"},
-            new String[]{"PATIENT_READ",      "PATIENTS",    "READ"},
-            new String[]{"PATIENT_CREATE",    "PATIENTS",    "CREATE"},
-            new String[]{"PATIENT_UPDATE",    "PATIENTS",    "UPDATE"},
-            new String[]{"PATIENT_DELETE",    "PATIENTS",    "DELETE"},
-            new String[]{"DOCUMENT_READ",     "DOCUMENTS",   "READ"},
-            new String[]{"DOCUMENT_CREATE",   "DOCUMENTS",   "CREATE"},
-            new String[]{"DOCUMENT_UPDATE",   "DOCUMENTS",   "UPDATE"},
-            new String[]{"DOCUMENT_DELETE",   "DOCUMENTS",   "DELETE"},
-            new String[]{"TEMPLATE_READ",     "TEMPLATES",   "READ"},
-            new String[]{"TEMPLATE_CREATE",   "TEMPLATES",   "CREATE"},
-            new String[]{"TEMPLATE_UPDATE",   "TEMPLATES",   "UPDATE"},
-            new String[]{"TEMPLATE_DELETE",   "TEMPLATES",   "DELETE"},
-            new String[]{"REPORT_READ",       "REPORTS",     "READ"},
-            new String[]{"REPORT_CREATE",     "REPORTS",     "CREATE"},
-            new String[]{"REPORT_UPDATE",     "REPORTS",     "UPDATE"},
-            new String[]{"REPORT_DELETE",     "REPORTS",     "DELETE"},
-            new String[]{"DICOM_READ",       "DICOM",     "READ"},
-            new String[]{"DICOM_CREATE",     "DICOM",     "CREATE"},
-            new String[]{"DICOM_UPDATE",     "DICOM",     "UPDATE"},
-            new String[]{"DICOM_DELETE",     "DICOM",     "DELETE"}
-        );
-
-        Set<String> existingNames = new HashSet<>();
-        permissionRepository.findAll().forEach(p -> existingNames.add(p.getName().toUpperCase().trim()));
-
-        Set<Permission> permissions = new HashSet<>();
-        for (String[] def : definitions) {
-            String name   = def[0];
-            String module = def[1];
-            String action = def[2];
-
-            Permission p;
-            if (existingNames.contains(name.toUpperCase())) {
-                p = permissionRepository.findByName(name).orElse(null);
-            } else {
-                try {
-                    log.info(">>> Creando permiso: {}", name);
-                    p = permissionRepository.saveAndFlush(Permission.builder()
-                            .name(name)
-                            .module(module)
-                            .action(action)
-                            .description("Permiso para " + name)
-                            .build());
-                } catch (Exception e) {
-                    log.warn(">>> Conflicto al crear permiso {}: {}", name, e.getMessage());
-                    p = permissionRepository.findByName(name).orElse(null);
-                }
-            }
-            if (p != null) permissions.add(p);
-        }
-        return permissions;
-    }
     private void setupExtraTenants(Role adminRole) {
         log.info(">>> Creando 13 clínicas extra para los gráficos del Dashboard...");
         Faker faker = new Faker(new Locale("es"));
@@ -361,8 +313,8 @@ public class DataInitializer implements ApplicationRunner {
 
             // Creamos un admin real para esta clínica
             setupUser("admin." + slug, "admin@" + slug + ".com", "Admin", "Clínica " + i,
-                      "admin123", DocumentType.CI, String.valueOf(faker.number().randomNumber(7, true)),
-                      adminRole, extraTenant);
+                    "admin123", DocumentType.CI, String.valueOf(faker.number().randomNumber(7, true)),
+                    adminRole, extraTenant);
 
             // Sembrar pacientes reales (Spring Boot se encarga de crear 50)
             seedPatients(extraTenant);
