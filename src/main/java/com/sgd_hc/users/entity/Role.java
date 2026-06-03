@@ -2,6 +2,7 @@ package com.sgd_hc.users.entity;
 
 import java.util.LinkedHashSet;
 import java.util.Set;
+import java.time.OffsetDateTime;
 
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
@@ -10,6 +11,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import lombok.experimental.SuperBuilder;
+import org.hibernate.annotations.Filter;
 
 @Entity(name = "roles")
 @SuperBuilder
@@ -17,7 +19,20 @@ import lombok.experimental.SuperBuilder;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-public class Role extends BaseEntity {
+@Filter(name = "tenantFilter")
+public class Role {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(
+            name = "tenant_id",
+            nullable = false,
+            updatable = false
+    )
+    private com.sgd_hc.tenants.entity.Tenant tenant;
 
     @Column(nullable = false)
     private String name;
@@ -39,4 +54,21 @@ public class Role extends BaseEntity {
             ))
     private Set<Permission> permissions = new LinkedHashSet<>();
 
+    @Column(name = "created_at", updatable = false, nullable = false)
+    private OffsetDateTime createdAt;
+
+    @Column(name = "updated_at", nullable = false)
+    private OffsetDateTime updatedAt;
+
+    @PrePersist
+    protected void onCreate() {
+        OffsetDateTime now = OffsetDateTime.now();
+        createdAt = now;
+        updatedAt = now;
+    }
+
+    @PreUpdate
+    protected void onUpdate() {
+        updatedAt = OffsetDateTime.now();
+    }
 }

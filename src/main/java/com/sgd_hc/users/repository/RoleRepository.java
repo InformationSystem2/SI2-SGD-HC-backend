@@ -14,8 +14,8 @@ import org.springframework.stereotype.Repository;
 import com.sgd_hc.users.entity.Role;
 
 @Repository
-public interface RoleRepository extends JpaRepository<Role, UUID> {
-    Set<Role> findAllByIdIn(Set<UUID> ids);
+public interface RoleRepository extends JpaRepository<Role, Long> {
+    Set<Role> findAllByIdIn(Set<Long> ids);
 
     Optional<Role> findByName(String name);
 
@@ -23,7 +23,7 @@ public interface RoleRepository extends JpaRepository<Role, UUID> {
 
     boolean existsByName(String name);
 
-    List<Role> findByPermissions_Id(UUID id);
+    List<Role> findByPermissions_Id(Long id);
 
     List<Role> findByIsActiveTrue();
 

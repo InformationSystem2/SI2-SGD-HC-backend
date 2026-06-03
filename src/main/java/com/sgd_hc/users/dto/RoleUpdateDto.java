@@ -10,5 +10,5 @@ public record RoleUpdateDto(
     String name,
     String description,
     Boolean isActive,
-    Set<UUID> permissionsIds
+    Set<Long> permissionsIds
 ) {}
