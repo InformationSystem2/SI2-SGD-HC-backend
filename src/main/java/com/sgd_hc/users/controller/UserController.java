@@ -22,31 +22,31 @@ public class UserController {
     private final UserService userService;
 
     @PostMapping
-    @PreAuthorize("hasAuthority('USER_CREATE')")
+    @PreAuthorize("hasAuthority('user:create')")
     public ResponseEntity<UserResponseDto> userCreate(@RequestBody UserCreateDto entity) {
         return new ResponseEntity<>(userService.createUser(entity), HttpStatus.CREATED);
     }
 
     @GetMapping
-    @PreAuthorize("hasAuthority('USER_READ')")
+    @PreAuthorize("hasAuthority('user:read')")
     public ResponseEntity<Iterable<UserResponseDto>> getAllUser() {
         return ResponseEntity.ok(userService.getAllUsers());
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasAuthority('USER_READ')")
+    @PreAuthorize("hasAuthority('user:read')")
     public ResponseEntity<UserResponseDto> getUserById(@PathVariable UUID id) {
         return ResponseEntity.ok(userService.getUserById(id));
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasAuthority('USER_UPDATE')")
+    @PreAuthorize("hasAuthority('user:update')")
     public ResponseEntity<UserResponseDto> userUpdate(@PathVariable UUID id, @RequestBody UserUpdateDto entity) {
         return ResponseEntity.ok(userService.updateUser(id, entity));
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasAuthority('USER_DELETE')")
+    @PreAuthorize("hasAuthority('user:delete')")
     public ResponseEntity<Void> userDelete(@PathVariable UUID id) {
         userService.deleteUser(id);
         return ResponseEntity.noContent().build();

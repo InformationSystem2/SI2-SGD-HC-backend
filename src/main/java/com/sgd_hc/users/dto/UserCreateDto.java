@@ -1,7 +1,6 @@
 package com.sgd_hc.users.dto;
 
 import java.util.Set;
-import java.util.UUID;
 
 public record UserCreateDto(
         String documentType,
@@ -12,5 +11,5 @@ public record UserCreateDto(
         String password,
         String phone,
         String gender,
-        Set<UUID> rolesIds
+        Set<Long> rolesIds
 ) {}
