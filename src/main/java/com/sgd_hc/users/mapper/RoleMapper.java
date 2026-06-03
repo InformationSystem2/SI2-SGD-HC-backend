@@ -16,6 +16,14 @@ import com.sgd_hc.users.entity.Role;
 @Component
 public class RoleMapper {
 
+    private static final Set<String> ALL_READ_AUTHORITIES = Set.of(
+            "role:read:id",
+            "role:read:name",
+            "role:read:description",
+            "role:read:is_active",
+            "role:read:permissions"
+    );
+
     public Role toEntity(RoleCreateDto dto, Set<Permission> permissions) {
         return Role.builder()
                 .name(dto.name())
@@ -32,18 +40,22 @@ public class RoleMapper {
     }
 
     public RoleResponseDto toResponseDto(Role entity) {
-        Set<UUID> permissionIds = entity.getPermissions() != null
+        return toResponseDto(entity, ALL_READ_AUTHORITIES);
+    }
+
+    public RoleResponseDto toResponseDto(Role entity, Set<String> userAuthorities) {
+        Set<Long> permissionIds = entity.getPermissions() != null
                 ? entity.getPermissions().stream()
                         .map(Permission::getId)
                         .collect(Collectors.toSet())
                 : new HashSet<>();
 
         return RoleResponseDto.builder()
-                .id(entity.getId())
-                .name(entity.getName())
-                .description(entity.getDescription())
-                .isActive(entity.getIsActive())
-                .permissionsIds(permissionIds)
+                .id(userAuthorities.contains("role:read:id") ? entity.getId() : null)
+                .name(userAuthorities.contains("role:read:name") ? entity.getName() : null)
+                .description(userAuthorities.contains("role:read:description") ? entity.getDescription() : null)
+                .isActive(userAuthorities.contains("role:read:is_active") ? entity.getIsActive() : null)
+                .permissionsIds(userAuthorities.contains("role:read:permissions") ? permissionIds : null)
                 .build();
     }
 }

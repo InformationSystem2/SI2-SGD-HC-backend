@@ -3,9 +3,16 @@ package com.sgd_hc.users.service;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
+
 import com.sgd_hc.security.config.tenant.TenantContext;
 
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import static com.sgd_hc.security.utils.SecurityUtils.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -33,6 +40,9 @@ public class UserService {
 
     @Transactional
     public UserResponseDto createUser(UserCreateDto dto) {
+        Set<String> authorities = currentAuthorities();
+        validateCreateAttributePermissions(dto, authorities);
+
         if (userRepository.existsByEmail(dto.email()))
             throw new IllegalArgumentException("Email already exists");
 
@@ -45,30 +55,35 @@ public class UserService {
         user.setPassword(passwordEncoder.encode(dto.password()));
         user.setTenant(tenantResolverService.resolve());
 
-        return userMapper.toResponseDto(userRepository.save(user));
+        return userMapper.toResponseDto(userRepository.save(user), authorities);
     }
 
     @Transactional(readOnly = true)
     public UserResponseDto getUserById(UUID id) {
-        return userMapper.toResponseDto(findOrThrow(id));
+        return userMapper.toResponseDto(findOrThrow(id), currentAuthorities());
     }
 
     @Transactional(readOnly = true)
     public UserResponseDto getUserByEmail(String email) {
         return userMapper.toResponseDto(
                 userRepository.findByEmail(email)
-                        .orElseThrow(() -> new IllegalArgumentException("User not found with email: " + email)));
+                        .orElseThrow(() -> new IllegalArgumentException("User not found with email: " + email)),
+                currentAuthorities());
     }
 
     @Transactional(readOnly = true)
     public Iterable<UserResponseDto> getAllUsers() {
+        Set<String> authorities = currentAuthorities();
         return userRepository.findAllRegularUsers().stream()
-                .map(userMapper::toResponseDto)
+                .map(user -> userMapper.toResponseDto(user, authorities))
                 .toList();
     }
 
     @Transactional
     public UserResponseDto updateUser(UUID id, UserUpdateDto dto) {
+        Set<String> authorities = currentAuthorities();
+        validateUpdateAttributePermissions(dto, authorities);
+
         User existingUser = findOrThrow(id);
 
         Set<Role> roles = null;
@@ -80,7 +95,7 @@ public class UserService {
         if (dto.password() != null && !dto.password().isBlank())
             existingUser.setPassword(passwordEncoder.encode(dto.password()));
 
-        return userMapper.toResponseDto(userRepository.save(existingUser));
+        return userMapper.toResponseDto(userRepository.save(existingUser), authorities);
     }
 
     @Transactional
@@ -92,6 +107,31 @@ public class UserService {
         return userRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("User not found with id: " + id));
     }
+
+    /**
+     * Válida que el usuario tenga permisos para crear los atributos especificados en el DTO
+     * @param dto
+     * @param authorities
+     */
+    private void validateCreateAttributePermissions(UserCreateDto dto, Set<String> authorities) {
+        if (dto.phone() != null) requireAuthority(authorities, "user:create:phone");
+        if (dto.gender() != null) requireAuthority(authorities, "user:create:gender");
+        if (dto.rolesIds() != null) requireAuthority(authorities, "user:update:roles");
+    }
+
+    private void validateUpdateAttributePermissions(UserUpdateDto dto, Set<String> authorities) {
+        if (dto.documentType() != null) requireAuthority(authorities, "user:update:document_type");
+        if (dto.documentNumber() != null) requireAuthority(authorities, "user:update:document_number");
+        if (dto.email() != null) requireAuthority(authorities, "user:update:email");
+        if (dto.firstName() != null) requireAuthority(authorities, "user:update:first_name");
+        if (dto.lastName() != null) requireAuthority(authorities, "user:update:last_name");
+        if (dto.password() != null) requireAuthority(authorities, "user:update:password");
+        if (dto.phone() != null) requireAuthority(authorities, "user:update:phone");
+        if (dto.gender() != null) requireAuthority(authorities, "user:update:gender");
+        if (dto.isActive() != null) requireAuthority(authorities, "user:update:is_active");
+        if (dto.rolesIds() != null) requireAuthority(authorities, "user:update:roles");
+    }
+
 
     public String generateUsername() {
         String slug = TenantContext.getCurrentTenantSlug();

@@ -4,10 +4,16 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import static com.sgd_hc.security.utils.SecurityUtils.*;
 import com.sgd_hc.tenants.service.TenantResolverService;
 import com.sgd_hc.users.dto.RoleCreateDto;
 import com.sgd_hc.users.dto.RoleResponseDto;
@@ -31,27 +37,34 @@ public class RoleService {
 
     @Transactional
     public RoleResponseDto createRole(RoleCreateDto dto) {
+        Set<String> authorities = currentAuthorities();
+        validateCreateAttributePermissions(dto, authorities);
+
         validateNameUniqueness(dto.name(), null);
         Set<Permission> permissions = fetchPermissions(dto.permissionsIds());
         Role role = roleMapper.toEntity(dto, permissions);
         role.setTenant(tenantResolverService.resolve());
-        return roleMapper.toResponseDto(roleRepository.save(role));
+        return roleMapper.toResponseDto(roleRepository.save(role), authorities);
     }
 
     @Transactional(readOnly = true)
-    public RoleResponseDto getRoleById(UUID id) {
-        return roleMapper.toResponseDto(findRoleOrThrow(id));
+    public RoleResponseDto getRoleById(Long id) {
+        return roleMapper.toResponseDto(findRoleOrThrow(id), currentAuthorities());
     }
 
     @Transactional(readOnly = true)
     public List<RoleResponseDto> getAllRoles() {
+        Set<String> authorities = currentAuthorities();
         return roleRepository.findAll().stream()
-                .map(roleMapper::toResponseDto)
+                .map(role -> roleMapper.toResponseDto(role, authorities))
                 .toList();
     }
 
     @Transactional
-    public RoleResponseDto updateRole(UUID id, RoleUpdateDto dto) {
+    public RoleResponseDto updateRole(Long id, RoleUpdateDto dto) {
+        Set<String> authorities = currentAuthorities();
+        validateUpdateAttributePermissions(dto, authorities);
+
         Role existingRole = findRoleOrThrow(id);
 
         if (dto.name() != null)
@@ -62,31 +75,44 @@ public class RoleService {
                 : null;
 
         roleMapper.updateEntityFromDto(dto, existingRole, permissions);
-        return roleMapper.toResponseDto(roleRepository.save(existingRole));
+        return roleMapper.toResponseDto(roleRepository.save(existingRole), authorities);
     }
 
     @Transactional
-    public void deleteRole(UUID id) {
+    public void deleteRole(Long id) {
         Role role = findRoleOrThrow(id);
         role.setIsActive(false);
         roleRepository.save(role);
     }
 
-    private Role findRoleOrThrow(UUID id) {
+    private Role findRoleOrThrow(Long id) {
         return roleRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Role not found with id: " + id));
     }
 
-    private void validateNameUniqueness(String name, UUID id) {
+    private void validateNameUniqueness(String name, Long id) {
         roleRepository.findByName(name).ifPresent(r -> {
             if (id == null || !r.getId().equals(id))
                 throw new IllegalArgumentException("Role name already exists: " + name);
         });
     }
 
-    private Set<Permission> fetchPermissions(Set<UUID> ids) {
+    private Set<Permission> fetchPermissions(Set<Long> ids) {
         if (ids == null || ids.isEmpty())
             return new HashSet<>();
         return new HashSet<>(permissionRepository.findAllById(ids));
     }
+
+    private void validateCreateAttributePermissions(RoleCreateDto dto, Set<String> authorities) {
+        if (dto.description() != null) requireAuthority(authorities, "role:create:description");
+        if (dto.permissionsIds() != null) requireAuthority(authorities, "role:create:permissions");
+    }
+
+    private void validateUpdateAttributePermissions(RoleUpdateDto dto, Set<String> authorities) {
+        if (dto.name() != null) requireAuthority(authorities, "role:update:name");
+        if (dto.description() != null) requireAuthority(authorities, "role:update:description");
+        if (dto.isActive() != null) requireAuthority(authorities, "role:update:is_active");
+        if (dto.permissionsIds() != null) requireAuthority(authorities, "role:update:permissions");
+    }
+
 }

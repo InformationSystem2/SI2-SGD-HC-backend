@@ -1,8 +1,6 @@
-//src/main/java/com/sgd_hc/documents/dto/DocumentResponseDto.java
-
 package com.sgd_hc.documents.dto;
 
-import com.sgd_hc.documents.entity.DocumentCategory;
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.sgd_hc.documents.entity.DocumentStatus;
 
 import java.time.LocalDate;
@@ -24,6 +22,7 @@ import java.util.UUID;
  * @param fileUrl          URL del archivo físico (puede ser nula).
  * @param isExternalSource Indica si es de fuente externa.
  */
+@JsonInclude(JsonInclude.Include.NON_NULL)
 public record DocumentResponseDto(
         UUID id,
         UUID patientId,

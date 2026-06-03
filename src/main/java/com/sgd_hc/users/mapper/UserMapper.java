@@ -17,7 +17,25 @@ import com.sgd_hc.users.entity.User;
 @Component
 public class UserMapper {
 
+    private static final Set<String> ALL_READ_AUTHORITIES = Set.of(
+            "user:read:id",
+            "user:read:username",
+            "user:read:email",
+            "user:read:first_name",
+            "user:read:last_name",
+            "user:read:phone",
+            "user:read:document_type",
+            "user:read:document_number",
+            "user:read:gender",
+            "user:read:is_active",
+            "user:read:roles"
+    );
+
     public User toEntity(UserCreateDto dto, Set<Role> roles) {
+        return toEntity(dto, roles, Set.of());
+    }
+
+    public User toEntity(UserCreateDto dto, Set<Role> roles, Set<String> userAuthorities) {
         return User.builder()
                 .documentType(dto.documentType() != null ? DocumentType.valueOf(dto.documentType()) : DocumentType.CI)
                 .documentNumber(dto.documentNumber())
@@ -33,32 +51,42 @@ public class UserMapper {
     public void updateEntityFromDto(UserUpdateDto dto, User existingUser, Set<Role> roles) {
         if (dto.documentType() != null) existingUser.setDocumentType(DocumentType.valueOf(dto.documentType()));
         if (dto.documentNumber() != null) existingUser.setDocumentNumber(dto.documentNumber());
+        if (dto.email() != null) existingUser.setEmail(dto.email());
         if (dto.firstName() != null) existingUser.setFirstName(dto.firstName());
         if (dto.lastName() != null) existingUser.setLastName(dto.lastName());
         if (dto.phone() != null) existingUser.setPhone(dto.phone());
+        if (dto.gender() != null) existingUser.setGender(dto.gender());
         if (dto.isActive() != null) existingUser.setIsActive(dto.isActive());
         if (roles != null) existingUser.setRoles(roles);
     }
 
     public UserResponseDto toResponseDto(User entity) {
-        Set<UUID> roleIds = entity.getRoles() != null
+        return toResponseDto(entity, ALL_READ_AUTHORITIES);
+    }
+
+    public UserResponseDto toResponseDto(User entity, Set<String> userAuthorities) {
+        Set<Long> roleIds = entity.getRoles() != null
                 ? entity.getRoles().stream()
                         .map(Role::getId)
                         .collect(Collectors.toSet())
                 : new HashSet<>();
 
         return new UserResponseDto(
-                entity.getId(),
-                entity.getUsername(),
-                entity.getEmail(),
-                entity.getFirstName(),
-                entity.getLastName(),
-                entity.getPhone(),
-                entity.getDocumentType() != null ? entity.getDocumentType().name() : null,
-                entity.getDocumentNumber(),
-                entity.getGender(),
-                entity.getIsActive(),
-                roleIds
+                canRead(userAuthorities, "id") ? entity.getId() : null,
+                canRead(userAuthorities, "username") ? entity.getUsername() : null,
+                canRead(userAuthorities, "email") ? entity.getEmail() : null,
+                canRead(userAuthorities, "first_name") ? entity.getFirstName() : null,
+                canRead(userAuthorities, "last_name") ? entity.getLastName() : null,
+                canRead(userAuthorities, "phone") ? entity.getPhone() : null,
+                canRead(userAuthorities, "document_type") && entity.getDocumentType() != null ? entity.getDocumentType().name() : null,
+                canRead(userAuthorities, "document_number") ? entity.getDocumentNumber() : null,
+                canRead(userAuthorities, "gender") ? entity.getGender() : null,
+                canRead(userAuthorities, "is_active") ? entity.getIsActive() : null,
+                canRead(userAuthorities, "roles") ? roleIds : null
         );
+    }
+
+    private boolean canRead(Set<String> userAuthorities, String attribute) {
+        return userAuthorities.contains("user:read:" + attribute);
     }
 }

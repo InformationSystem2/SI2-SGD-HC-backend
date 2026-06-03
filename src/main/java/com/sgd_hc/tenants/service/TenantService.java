@@ -19,6 +19,12 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
+import java.util.stream.Collectors;
+import static com.sgd_hc.security.utils.SecurityUtils.*;
 
 import com.sgd_hc.tenants.config.TenantSettingsDefaults;
 import com.sgd_hc.security.config.tenant.TenantContext;
@@ -206,30 +212,19 @@ public class TenantService {
 
     @Transactional(readOnly = true)
     public TenantInfoDto getTenantInfoBySlug(String slug) {
+        Set<String> authorities = currentAuthorities();
         Tenant tenant = findTenantBySlugOrThrow(slug);
 
         AdminInfoDto adminInfo = extractAdminInfo(slug);
 
-        return new TenantInfoDto(
-                tenant.getName(),
-                tenant.getSlug(),
-                tenant.getEmail(),
-                tenant.getPhone(),
-                tenant.getAddress(),
-                tenant.getSubscriptionPlan(),
-                tenant.getSubscriptionStatus(),
-                tenant.getSubscriptionStartDate(),
-                tenant.getSubscriptionStartDate().plusDays(30),
-                adminInfo != null ? adminInfo.firstName() : null,
-                adminInfo != null ? adminInfo.lastName() : null,
-                adminInfo != null ? adminInfo.email() : null,
-                adminInfo != null ? adminInfo.phone() : null,
-                tenant.getLogoUrl()
-        );
+        return mapToTenantInfoDto(tenant, adminInfo, authorities);
     }
 
     @Transactional
     public TenantInfoDto updateTenantBasicInfo(String slug, Map<String, Object> data) {
+        Set<String> authorities = currentAuthorities();
+        validateUpdateBasicInfoPermissions(data, authorities);
+
         Tenant tenant = findTenantBySlugOrThrow(slug);
 
         if (data.containsKey("name") && data.get("name") != null) {
@@ -252,34 +247,21 @@ public class TenantService {
 
         AdminInfoDto adminInfo = extractAdminInfo(slug);
 
-        return new TenantInfoDto(
-                tenant.getName(),
-                tenant.getSlug(),
-                tenant.getEmail(),
-                tenant.getPhone(),
-                tenant.getAddress(),
-                tenant.getSubscriptionPlan(),
-                tenant.getSubscriptionStatus(),
-                tenant.getSubscriptionStartDate(),
-                tenant.getSubscriptionStartDate().plusDays(30),
-                adminInfo != null ? adminInfo.firstName() : null,
-                adminInfo != null ? adminInfo.lastName() : null,
-                adminInfo != null ? adminInfo.email() : null,
-                adminInfo != null ? adminInfo.phone() : null,
-                tenant.getLogoUrl()
-        );
+        return mapToTenantInfoDto(tenant, adminInfo, authorities);
     }
 
     // ── SETTINGS (por slug) ────────────────────────────────────────────────
 
     @Transactional(readOnly = true)
     public Map<String, Object> getSettingsBySlug(String slug) {
+        requireAuthority(currentAuthorities(), "tenant:read:settings");
         Tenant tenant = findTenantBySlugOrThrow(slug);
         return getSettingsFromTenant(tenant);
     }
 
     @Transactional
     public Map<String, Object> updateSettingsBySlug(String slug, Map<String, Object> newSettings) {
+        requireAuthority(currentAuthorities(), "tenant:update:settings");
         Tenant tenant = findTenantBySlugOrThrow(slug);
         return updateSettingsOnTenant(tenant, newSettings);
     }
@@ -387,6 +369,7 @@ public class TenantService {
             int size,
             String search
     ) {
+        Set<String> authorities = currentAuthorities();
         var pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
 
         Page<Tenant> tenantPage;
@@ -399,7 +382,7 @@ public class TenantService {
         }
 
         List<TenantListItemDto> items = tenantPage.getContent().stream()
-                .map(this::toTenantListItemDto)
+                .map(tenant -> mapToTenantListItemDto(tenant, authorities))
                 .toList();
 
         return new PageResponseDto<>(
@@ -413,32 +396,9 @@ public class TenantService {
         );
     }
 
-    private TenantListItemDto toTenantListItemDto(Tenant tenant) {
-        AdminInfoDto adminInfo = extractAdminInfo(tenant.getSlug());
-
-        int userCount = tenantRepository.countActiveUsersByTenantId(tenant.getId());
-
-        LocalDate endDate = tenant.getSubscriptionStartDate() != null
-                ? tenant.getSubscriptionStartDate().plusDays(30)
-                : null;
-
-        return new TenantListItemDto(
-                tenant.getId(),
-                tenant.getName(),
-                tenant.getSlug(),
-                tenant.getSubscriptionPlan(),
-                tenant.getSubscriptionStatus(),
-                endDate,
-                adminInfo != null ? adminInfo.firstName() + " " + adminInfo.lastName() : null,
-                adminInfo != null ? adminInfo.email() : null,
-                userCount,
-                tenant.getCreatedAt(),
-                tenant.getUpdatedAt()
-        );
-    }
-
     @Transactional(readOnly = true)
     public TenantDetailDto getTenantDetails(UUID id) {
+        Set<String> authorities = currentAuthorities();
         Tenant tenant = findOrThrow(id);
 
         AdminInfoDto adminInfo = extractAdminInfo(tenant.getSlug());
@@ -447,32 +407,7 @@ public class TenantService {
         Map<String, Object> settings = getSettingsFromTenant(tenant);
         PlanLimits limits = extractPlanLimits(settings);
 
-        TenantStatsDto stats = new TenantStatsDto(
-                userCount,
-                limits.maxUsers(),
-                0L,
-                limits.maxStorageMB(),
-                0L,
-                limits.maxApiCalls()
-        );
-
-        return new TenantDetailDto(
-                tenant.getId(),
-                tenant.getName(),
-                tenant.getSlug(),
-                tenant.getEmail(),
-                tenant.getPhone(),
-                tenant.getAddress(),
-                tenant.getSubscriptionPlan(),
-                tenant.getSubscriptionStatus(),
-                tenant.getSubscriptionStartDate(),
-                tenant.getSubscriptionStartDate().plusDays(30),
-                tenant.getSettings(),
-                adminInfo,
-                stats,
-                tenant.getCreatedAt(),
-                tenant.getUpdatedAt()
-        );
+        return mapToTenantDetailDto(tenant, adminInfo, userCount, settings, limits, authorities);
     }
 
     @Transactional
@@ -627,4 +562,85 @@ public class TenantService {
             );
         };
     }
+
+    private TenantInfoDto mapToTenantInfoDto(Tenant tenant, AdminInfoDto adminInfo, Set<String> authorities) {
+        return new TenantInfoDto(
+                authorities.contains("tenant:read:name") ? tenant.getName() : null,
+                authorities.contains("tenant:read:slug") ? tenant.getSlug() : null,
+                authorities.contains("tenant:read:email") ? tenant.getEmail() : null,
+                authorities.contains("tenant:read:phone") ? tenant.getPhone() : null,
+                authorities.contains("tenant:read:address") ? tenant.getAddress() : null,
+                authorities.contains("tenant:read:subscription_plan") ? tenant.getSubscriptionPlan() : null,
+                authorities.contains("tenant:read:subscription_status") ? tenant.getSubscriptionStatus() : null,
+                authorities.contains("tenant:read:subscription_start_date") ? tenant.getSubscriptionStartDate() : null,
+                authorities.contains("tenant:read:subscription_start_date") ? tenant.getSubscriptionStartDate().plusDays(30) : null,
+                adminInfo != null ? adminInfo.firstName() : null,
+                adminInfo != null ? adminInfo.lastName() : null,
+                adminInfo != null ? adminInfo.email() : null,
+                adminInfo != null ? adminInfo.phone() : null,
+                authorities.contains("tenant:read:logo_url") ? tenant.getLogoUrl() : null
+        );
+    }
+
+    private TenantListItemDto mapToTenantListItemDto(Tenant tenant, Set<String> authorities) {
+        AdminInfoDto adminInfo = extractAdminInfo(tenant.getSlug());
+        int userCount = tenantRepository.countActiveUsersByTenantId(tenant.getId());
+
+        LocalDate endDate = tenant.getSubscriptionStartDate() != null
+                ? tenant.getSubscriptionStartDate().plusDays(30)
+                : null;
+
+        return new TenantListItemDto(
+                authorities.contains("tenant:read:id") ? tenant.getId() : null,
+                authorities.contains("tenant:read:name") ? tenant.getName() : null,
+                authorities.contains("tenant:read:slug") ? tenant.getSlug() : null,
+                authorities.contains("tenant:read:subscription_plan") ? tenant.getSubscriptionPlan() : null,
+                authorities.contains("tenant:read:subscription_status") ? tenant.getSubscriptionStatus() : null,
+                authorities.contains("tenant:read:subscription_start_date") ? endDate : null,
+                adminInfo != null ? adminInfo.firstName() + " " + adminInfo.lastName() : null,
+                adminInfo != null ? adminInfo.email() : null,
+                userCount,
+                authorities.contains("tenant:read:created_at") ? tenant.getCreatedAt() : null,
+                authorities.contains("tenant:read:updated_at") ? tenant.getUpdatedAt() : null
+        );
+    }
+
+    private TenantDetailDto mapToTenantDetailDto(Tenant tenant, AdminInfoDto adminInfo, int userCount, Map<String, Object> settings, PlanLimits limits, Set<String> authorities) {
+        TenantStatsDto stats = new TenantStatsDto(
+                userCount,
+                limits.maxUsers(),
+                0L,
+                limits.maxStorageMB(),
+                0L,
+                limits.maxApiCalls()
+        );
+
+        return new TenantDetailDto(
+                authorities.contains("tenant:read:id") ? tenant.getId() : null,
+                authorities.contains("tenant:read:name") ? tenant.getName() : null,
+                authorities.contains("tenant:read:slug") ? tenant.getSlug() : null,
+                authorities.contains("tenant:read:email") ? tenant.getEmail() : null,
+                authorities.contains("tenant:read:phone") ? tenant.getPhone() : null,
+                authorities.contains("tenant:read:address") ? tenant.getAddress() : null,
+                authorities.contains("tenant:read:subscription_plan") ? tenant.getSubscriptionPlan() : null,
+                authorities.contains("tenant:read:subscription_status") ? tenant.getSubscriptionStatus() : null,
+                authorities.contains("tenant:read:subscription_start_date") ? tenant.getSubscriptionStartDate() : null,
+                authorities.contains("tenant:read:subscription_start_date") ? tenant.getSubscriptionStartDate().plusDays(30) : null,
+                authorities.contains("tenant:read:settings") ? tenant.getSettings() : null,
+                adminInfo,
+                stats,
+                authorities.contains("tenant:read:created_at") ? tenant.getCreatedAt() : null,
+                authorities.contains("tenant:read:updated_at") ? tenant.getUpdatedAt() : null
+        );
+    }
+
+    private void validateUpdateBasicInfoPermissions(Map<String, Object> data, Set<String> authorities) {
+        if (data.containsKey("name")) requireAuthority(authorities, "tenant:update:name");
+        if (data.containsKey("email")) requireAuthority(authorities, "tenant:update:email");
+        if (data.containsKey("phone")) requireAuthority(authorities, "tenant:update:phone");
+        if (data.containsKey("address")) requireAuthority(authorities, "tenant:update:address");
+        if (data.containsKey("logoUrl")) requireAuthority(authorities, "tenant:update:logo_url");
+    }
+
+
 }

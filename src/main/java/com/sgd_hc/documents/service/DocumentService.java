@@ -1,5 +1,3 @@
-//src/main/java/com/sgd_hc/documents/service/DocumentService.java
-
 package com.sgd_hc.documents.service;
 
 import com.sgd_hc.documents.dto.DocumentRequestDto;
@@ -18,6 +16,7 @@ import com.sgd_hc.security.details.SecurityUser;
 import com.sgd_hc.tenants.entity.Tenant;
 import com.sgd_hc.tenants.service.TenantResolverService;
 import com.sgd_hc.users.entity.User;
+import static com.sgd_hc.security.utils.SecurityUtils.*;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 
@@ -26,7 +25,11 @@ import org.springframework.core.io.Resource;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.MediaTypeFactory;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
+import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import com.sgd_hc.documents.dto.OcrResultDto;
@@ -37,6 +40,7 @@ import org.springframework.util.MimeType;
 import java.io.InputStream;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Set;
 import java.util.Objects;
 import java.util.UUID;
 import java.io.IOException;
@@ -63,6 +67,9 @@ public class DocumentService {
 
     @Transactional
     public DocumentResponseDto create(DocumentRequestDto dto) {
+        Set<String> authorities = currentAuthorities();
+        validateCreateAttributePermissions(dto, authorities);
+
         Tenant tenant = tenantResolverService.resolve();
 
         Patient patient = patientRepository.findById(dto.patientId())
@@ -76,13 +83,16 @@ public class DocumentService {
 
         Document doc = documentMapper.toEntity(dto, patient, currentUser(), template);
         doc.setTenant(tenant);
-        return documentMapper.toResponseDto(documentRepository.save(doc));
+        return documentMapper.toResponseDto(documentRepository.save(doc), authorities);
     }
 
     // ── Documento externo (archivo subido) ───────────────────────────────────
 
     @Transactional
     public DocumentResponseDto createExternal(ExternalDocumentRequestDto dto) {
+        Set<String> authorities = currentAuthorities();
+        validateCreateExternalAttributePermissions(dto, authorities);
+
         Tenant tenant = tenantResolverService.resolve();
 
         Patient patient = patientRepository.findById(dto.patientId())
@@ -104,55 +114,64 @@ public class DocumentService {
             doc.setClinicalContent(java.util.Map.of("notas", dto.notes()));
         }
 
-        return documentMapper.toResponseDto(documentRepository.save(doc));
+        return documentMapper.toResponseDto(documentRepository.save(doc), authorities);
     }
 
     // ── Consultas ────────────────────────────────────────────────────────────
 
     @Transactional(readOnly = true)
     public List<DocumentResponseDto> getAll() {
+        Set<String> authorities = currentAuthorities();
         Tenant tenant = tenantResolverService.resolve();
         return documentRepository.findAll().stream()
                 .filter(d -> d.getTenant().getId().equals(tenant.getId()))
-                .map(documentMapper::toResponseDto)
+                .map(doc -> documentMapper.toResponseDto(doc, authorities))
                 .toList();
     }
 
     @Transactional(readOnly = true)
     public List<DocumentResponseDto> getByPatient(UUID patientId) {
+        Set<String> authorities = currentAuthorities();
         Tenant tenant = tenantResolverService.resolve();
         return documentRepository
                 .findByPatientIdAndTenantId(patientId, tenant.getId())
                 .stream()
-                .map(documentMapper::toResponseDto)
+                .map(doc -> documentMapper.toResponseDto(doc, authorities))
                 .toList();
     }
 
     @Transactional(readOnly = true)
     public DocumentResponseDto getById(UUID id) {
-        return documentMapper.toResponseDto(findOrThrow(id));
+        return documentMapper.toResponseDto(findOrThrow(id), currentAuthorities());
     }
 
     @Transactional(readOnly = true)
     public List<DocumentResponseDto> searchByClinicalField(String key, String value) {
+        Set<String> authorities = currentAuthorities();
         Tenant tenant = tenantResolverService.resolve();
         return documentRepository
                 .findByTenantIdAndClinicalContentField(tenant.getId(), key, value)
                 .stream()
-                .map(documentMapper::toResponseDto)
+                .map(doc -> documentMapper.toResponseDto(doc, authorities))
                 .toList();
     }
 
     @Transactional
     public DocumentResponseDto changeStatus(UUID id, DocumentStatus newStatus) {
+        Set<String> authorities = currentAuthorities();
+        requireAuthority(authorities, "document:update:status");
+
         Document doc = findOrThrow(id);
         validateTransition(doc.getStatus(), newStatus);
         doc.setStatus(newStatus);
-        return documentMapper.toResponseDto(documentRepository.save(doc));
+        return documentMapper.toResponseDto(documentRepository.save(doc), authorities);
     }
 
     @Transactional
     public DocumentResponseDto update(UUID id, DocumentUpdateDto dto) {
+        Set<String> authorities = currentAuthorities();
+        validateUpdateAttributePermissions(dto, authorities);
+
         Document doc = findOrThrow(id);
         doc.setIssueDate(dto.issueDate());
         if (dto.expiryDate() != null)
@@ -163,7 +182,7 @@ public class DocumentService {
             validateTransition(doc.getStatus(), dto.status());
             doc.setStatus(dto.status());
         }
-        return documentMapper.toResponseDto(documentRepository.save(doc));
+        return documentMapper.toResponseDto(documentRepository.save(doc), authorities);
     }
 
     @Transactional
@@ -171,6 +190,27 @@ public class DocumentService {
         Document doc = findOrThrow(id);
         documentRepository.delete(doc);
     }
+
+    private void validateCreateAttributePermissions(DocumentRequestDto dto, Set<String> authorities) {
+        if (dto.templateId() != null) requireAuthority(authorities, "document:create:template_id");
+        if (dto.clinicalContent() != null) requireAuthority(authorities, "document:create:clinical_content");
+        if (dto.fileUrl() != null) requireAuthority(authorities, "document:create:file_url");
+        if (dto.expiryDate() != null) requireAuthority(authorities, "document:create:expiry_date");
+        if (dto.isExternalSource() != null) requireAuthority(authorities, "document:create:is_external_source");
+    }
+
+    private void validateCreateExternalAttributePermissions(ExternalDocumentRequestDto dto, Set<String> authorities) {
+        if (dto.fileUrl() != null) requireAuthority(authorities, "document:create:file_url");
+        if (dto.notes() != null) requireAuthority(authorities, "document:create:clinical_content");
+    }
+
+    private void validateUpdateAttributePermissions(DocumentUpdateDto dto, Set<String> authorities) {
+        if (dto.issueDate() != null) requireAuthority(authorities, "document:update:issue_date");
+        if (dto.expiryDate() != null) requireAuthority(authorities, "document:update:expiry_date");
+        if (dto.clinicalContent() != null) requireAuthority(authorities, "document:update:clinical_content");
+        if (dto.status() != null) requireAuthority(authorities, "document:update:status");
+    }
+
 
     // ── Helpers ──────────────────────────────────────────────────────────────
 

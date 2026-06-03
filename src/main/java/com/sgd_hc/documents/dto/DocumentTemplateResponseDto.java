@@ -1,5 +1,6 @@
 package com.sgd_hc.documents.dto;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import java.util.Map;
 import java.util.UUID;
 
@@ -11,6 +12,7 @@ import java.util.UUID;
  * @param description Una descripción breve de la plantilla de documento
  * @param uiSchema Un mapa que representa el esquema de la interfaz de usuario asociado con la plantilla de documento
  */
+@JsonInclude(JsonInclude.Include.NON_NULL)
 public record DocumentTemplateResponseDto(
         UUID id,
         String name,

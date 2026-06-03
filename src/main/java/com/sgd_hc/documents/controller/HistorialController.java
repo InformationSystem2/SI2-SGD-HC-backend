@@ -49,7 +49,7 @@ public class HistorialController {
      * @return Página con los documentos encontrados y metadatos de paginación.
      */
     @GetMapping("/search")
-    @PreAuthorize("hasAuthority('DOCUMENT_READ')")
+    @PreAuthorize("hasAuthority('document:read')")
     public ResponseEntity<Page<DocumentResponseDto>> searchHistoriales(
             @RequestParam(required = false) String nombre,
             @RequestParam(required = false) String nroDoc,

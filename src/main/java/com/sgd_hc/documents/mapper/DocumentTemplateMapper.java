@@ -11,6 +11,13 @@ import java.util.stream.Collectors;
 @Component
 public class DocumentTemplateMapper {
 
+    private static final java.util.Set<String> ALL_READ_AUTHORITIES = java.util.Set.of(
+            "template:read:id",
+            "template:read:name",
+            "template:read:description",
+            "template:read:ui_schema"
+    );
+
     public DocumentTemplate toEntity(DocumentTemplateRequestDto dto) {
         DocumentTemplate template = new DocumentTemplate();
         template.setName(dto.name());
@@ -27,15 +34,18 @@ public class DocumentTemplateMapper {
     }
 
     public DocumentTemplateResponseDto toResponseDto(DocumentTemplate template) {
+        return toResponseDto(template, ALL_READ_AUTHORITIES);
+    }
+
+    public DocumentTemplateResponseDto toResponseDto(DocumentTemplate template, java.util.Set<String> userAuthorities) {
         return new DocumentTemplateResponseDto(
-                template.getId(),
-                template.getName(),
-                template.getDescription(),
-                template.getUiSchema() != null
+                userAuthorities.contains("template:read:id") ? template.getId() : null,
+                userAuthorities.contains("template:read:name") ? template.getName() : null,
+                userAuthorities.contains("template:read:description") ? template.getDescription() : null,
+                userAuthorities.contains("template:read:ui_schema") && template.getUiSchema() != null
                         ? template.getUiSchema().entrySet().stream()
                           .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue))
                         : null
         );
     }
-
 }

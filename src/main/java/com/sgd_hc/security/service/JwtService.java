@@ -72,8 +72,20 @@ public class JwtService {
 
     public String generateAccessToken(@NonNull UserDetails userDetails, Instant tenantSuspendedAt) {
         Map<String, Object> extraClaims = new HashMap<>();
-        extraClaims.put("roles", userDetails.getAuthorities()
-                .stream().map(GrantedAuthority::getAuthority).toList());
+        
+        java.util.List<String> roles;
+        if (userDetails instanceof SecurityUser su) {
+            roles = su.getUser().getRoles().stream()
+                    .map(com.sgd_hc.users.entity.Role::getName)
+                    .toList();
+            extraClaims.put("userId", su.getUser().getId().toString());
+        } else {
+            roles = userDetails.getAuthorities().stream()
+                    .map(GrantedAuthority::getAuthority)
+                    .filter(auth -> auth.startsWith("ROLE_"))
+                    .toList();
+        }
+        extraClaims.put("roles", roles);
         extraClaims.put("iat", Instant.now().toString());
 
         if (userDetails instanceof SecurityUser su) {

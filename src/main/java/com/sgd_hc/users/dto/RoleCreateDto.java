@@ -13,5 +13,5 @@ public record RoleCreateDto(
 
     String description,
 
-    Set<UUID> permissionsIds
+    Set<Long> permissionsIds
 ) {}
