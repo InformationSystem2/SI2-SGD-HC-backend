@@ -15,6 +15,19 @@ import java.util.UUID;
 @Component
 public class DocumentMapper {
 
+    private static final java.util.Set<String> ALL_READ_AUTHORITIES = java.util.Set.of(
+            "document:read:id",
+            "document:read:patient_id",
+            "document:read:uploader_id",
+            "document:read:template_id",
+            "document:read:status",
+            "document:read:clinical_content",
+            "document:read:issue_date",
+            "document:read:expiry_date",
+            "document:read:file_url",
+            "document:read:is_external_source"
+    );
+
     public Document toEntity(DocumentRequestDto dto, Patient patient, User uploader, DocumentTemplate template) {
         Document doc = new Document();
         doc.setPatient(patient);
@@ -29,28 +42,32 @@ public class DocumentMapper {
     }
 
     public DocumentResponseDto toResponseDto(Document doc) {
+        return toResponseDto(doc, ALL_READ_AUTHORITIES);
+    }
+
+    public DocumentResponseDto toResponseDto(Document doc, java.util.Set<String> userAuthorities) {
         // template es nullable para documentos externos
         UUID templateId = doc.getTemplate() != null ? doc.getTemplate().getId() : null;
         String templateName = doc.getTemplate() != null ? doc.getTemplate().getName() : "Documento Externo";
 
         String patientName = doc.getPatient().getFirstName() + " " + doc.getPatient().getLastName();
-        String patientDocNumber = doc.getPatient().getDocumentNumber(); // ← OBTENER NÚMERO
+        String patientDocNumber = doc.getPatient().getDocumentNumber();
         String uploaderName = doc.getUploader().getFirstName() + " " + doc.getUploader().getLastName();
 
         return new DocumentResponseDto(
-                doc.getId(),
-                doc.getPatient().getId(),
-                patientName,
-                patientDocNumber, // ← AGREGAR
-                doc.getUploader().getId(),
-                uploaderName,
-                templateId,
-                templateName,
-                doc.getStatus(),
-                doc.getClinicalContent(),
-                doc.getIssueDate(),
-                doc.getExpiryDate(),
-                doc.getFileUrl(),
-                doc.getIsExternalSource());
+                userAuthorities.contains("document:read:id") ? doc.getId() : null,
+                userAuthorities.contains("document:read:patient_id") && doc.getPatient() != null ? doc.getPatient().getId() : null,
+                userAuthorities.contains("document:read:patient_id") ? patientName : null,
+                userAuthorities.contains("document:read:patient_id") ? patientDocNumber : null,
+                userAuthorities.contains("document:read:uploader_id") && doc.getUploader() != null ? doc.getUploader().getId() : null,
+                userAuthorities.contains("document:read:uploader_id") ? uploaderName : null,
+                userAuthorities.contains("document:read:template_id") ? templateId : null,
+                userAuthorities.contains("document:read:template_id") ? templateName : null,
+                userAuthorities.contains("document:read:status") ? doc.getStatus() : null,
+                userAuthorities.contains("document:read:clinical_content") ? doc.getClinicalContent() : null,
+                userAuthorities.contains("document:read:issue_date") ? doc.getIssueDate() : null,
+                userAuthorities.contains("document:read:expiry_date") ? doc.getExpiryDate() : null,
+                userAuthorities.contains("document:read:file_url") ? doc.getFileUrl() : null,
+                userAuthorities.contains("document:read:is_external_source") ? doc.getIsExternalSource() : null);
     }
 }

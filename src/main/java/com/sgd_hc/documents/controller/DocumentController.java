@@ -35,7 +35,7 @@ public class DocumentController {
     // ── Documento basado en plantilla ────────────────────────────────────────
 
     @PostMapping
-    @PreAuthorize("hasAuthority('DOCUMENT_CREATE')")
+    @PreAuthorize("hasAuthority('document:create')")
     public ResponseEntity<DocumentResponseDto> create(@Valid @RequestBody DocumentRequestDto dto) {
         return new ResponseEntity<>(documentService.create(dto), HttpStatus.CREATED);
     }
@@ -43,26 +43,26 @@ public class DocumentController {
     // ── Lista general ────────────────────────────────────────────────────────
 
     @GetMapping
-    @PreAuthorize("hasAuthority('DOCUMENT_READ')")
+    @PreAuthorize("hasAuthority('document:read')")
     public ResponseEntity<List<DocumentResponseDto>> getAll() {
         return ResponseEntity.ok(documentService.getAll());
     }
 
     @GetMapping("/patient/{patientId}")
-    @PreAuthorize("hasAuthority('DOCUMENT_READ')")
+    @PreAuthorize("hasAuthority('document:read')")
     public ResponseEntity<List<DocumentResponseDto>> getByPatient(@PathVariable UUID patientId) {
         return ResponseEntity.ok(documentService.getByPatient(patientId));
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasAuthority('DOCUMENT_READ')")
+    @PreAuthorize("hasAuthority('document:read')")
     public ResponseEntity<DocumentResponseDto> getById(@PathVariable UUID id) {
         return ResponseEntity.ok(documentService.getById(id));
     }
 
     /** Busca por clave/valor dentro del JSONB clinical_content. */
     @GetMapping("/search")
-    @PreAuthorize("hasAuthority('DOCUMENT_READ')")
+    @PreAuthorize("hasAuthority('document:read')")
     public ResponseEntity<List<DocumentResponseDto>> searchByClinicalField(
             @RequestParam String key,
             @RequestParam String value) {
@@ -70,7 +70,7 @@ public class DocumentController {
     }
 
     @PatchMapping("/{id}/status")
-    @PreAuthorize("hasAuthority('DOCUMENT_UPDATE')")
+    @PreAuthorize("hasAuthority('document:update')")
     public ResponseEntity<DocumentResponseDto> changeStatus(
             @PathVariable UUID id,
             @RequestParam DocumentStatus status) {
@@ -78,7 +78,7 @@ public class DocumentController {
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasAuthority('DOCUMENT_UPDATE')")
+    @PreAuthorize("hasAuthority('document:update')")
     public ResponseEntity<DocumentResponseDto> update(
             @PathVariable UUID id,
             @Valid @RequestBody DocumentUpdateDto dto) {
@@ -86,7 +86,7 @@ public class DocumentController {
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasAuthority('DOCUMENT_UPDATE')")
+    @PreAuthorize("hasAuthority('document:delete')")
     public ResponseEntity<Void> delete(@PathVariable UUID id) {
         documentService.delete(id);
         return ResponseEntity.noContent().build();
@@ -99,7 +99,7 @@ public class DocumentController {
      * Paso 1 del flujo de documentos externos.
      */
     @PostMapping(value = "/upload-file", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @PreAuthorize("hasAuthority('DOCUMENT_CREATE')")
+    @PreAuthorize("hasAuthority('document:create')")
     public ResponseEntity<Map<String, String>> uploadFile(
             @RequestPart("file") MultipartFile file) throws IOException {
         String url = fileStorageService.store(file);
@@ -111,7 +111,7 @@ public class DocumentController {
      * Paso 2 del flujo de documentos externos.
      */
     @PostMapping("/external")
-    @PreAuthorize("hasAuthority('DOCUMENT_CREATE')")
+    @PreAuthorize("hasAuthority('document:create')")
     public ResponseEntity<DocumentResponseDto> createExternal(
             @Valid @RequestBody ExternalDocumentRequestDto dto) {
         return new ResponseEntity<>(documentService.createExternal(dto), HttpStatus.CREATED);
@@ -120,13 +120,13 @@ public class DocumentController {
     // ── OCR ──────────────────────────────────────────────────────────────────
 
     @PostMapping("/{id}/ocr")
-    @PreAuthorize("hasAuthority('DOCUMENT_READ')")
+    @PreAuthorize("hasAuthority('document:read')")
     public ResponseEntity<OcrResultDto> triggerOcr(@PathVariable UUID id) {
         return ResponseEntity.ok(documentService.processOcr(id));
     }
 
     @GetMapping("/{id}/ocr")
-    @PreAuthorize("hasAuthority('DOCUMENT_READ')")
+    @PreAuthorize("hasAuthority('document:read')")
     public ResponseEntity<OcrResultDto> getOcr(@PathVariable UUID id) {
         return ResponseEntity.ok(documentService.getOcrResult(id));
     }

@@ -21,25 +21,25 @@ public class DocumentTemplateController {
     private final DocumentTemplateService documentTemplateService;
 
     @PostMapping
-    @PreAuthorize("hasAuthority('TEMPLATE_CREATE')")
+    @PreAuthorize("hasAuthority('template:create')")
     public ResponseEntity<DocumentTemplateResponseDto> create(@Valid @RequestBody DocumentTemplateRequestDto dto) {
         return new ResponseEntity<>(documentTemplateService.create(dto), HttpStatus.CREATED);
     }
 
     @GetMapping
-    @PreAuthorize("hasAuthority('TEMPLATE_READ')")
+    @PreAuthorize("hasAuthority('template:read')")
     public ResponseEntity<List<DocumentTemplateResponseDto>> getAllActive() {
         return ResponseEntity.ok(documentTemplateService.getAllActive());
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasAuthority('TEMPLATE_READ')")
+    @PreAuthorize("hasAuthority('template:read')")
     public ResponseEntity<DocumentTemplateResponseDto> getById(@PathVariable UUID id) {
         return ResponseEntity.ok(documentTemplateService.getById(id));
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasAuthority('TEMPLATE_UPDATE')")
+    @PreAuthorize("hasAuthority('template:update')")
     public ResponseEntity<DocumentTemplateResponseDto> update(
             @PathVariable UUID id,
             @Valid @RequestBody DocumentTemplateRequestDto dto) {
@@ -47,7 +47,7 @@ public class DocumentTemplateController {
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasAuthority('TEMPLATE_DELETE')")
+    @PreAuthorize("hasAuthority('template:delete')")
     public ResponseEntity<Void> deactivate(@PathVariable UUID id) {
         documentTemplateService.deactivate(id);
         return ResponseEntity.noContent().build();

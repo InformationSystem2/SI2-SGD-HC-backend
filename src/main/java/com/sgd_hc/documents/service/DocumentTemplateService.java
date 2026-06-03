@@ -8,12 +8,19 @@ import com.sgd_hc.documents.repository.DocumentTemplateRepository;
 import com.sgd_hc.tenants.entity.Tenant;
 import com.sgd_hc.tenants.service.TenantResolverService;
 import jakarta.persistence.EntityNotFoundException;
+import static com.sgd_hc.security.utils.SecurityUtils.*;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -25,32 +32,39 @@ public class DocumentTemplateService {
 
     @Transactional
     public DocumentTemplateResponseDto create(DocumentTemplateRequestDto dto) {
+        Set<String> authorities = currentAuthorities();
+        validateCreateAttributePermissions(dto, authorities);
+
         Tenant tenant = tenantResolverService.resolve();
         DocumentTemplate template = documentTemplateMapper.toEntity(dto);
         template.setTenant(tenant);
-        return documentTemplateMapper.toResponseDto(documentTemplateRepository.save(template));
+        return documentTemplateMapper.toResponseDto(documentTemplateRepository.save(template), authorities);
     }
 
     @Transactional(readOnly = true)
     public List<DocumentTemplateResponseDto> getAllActive() {
+        Set<String> authorities = currentAuthorities();
         Tenant tenant = tenantResolverService.resolve();
         return documentTemplateRepository
                 .findByTenantIdAndIsActiveTrue(tenant.getId())
                 .stream()
-                .map(documentTemplateMapper::toResponseDto)
+                .map(template -> documentTemplateMapper.toResponseDto(template, authorities))
                 .toList();
     }
 
     @Transactional(readOnly = true)
     public DocumentTemplateResponseDto getById(UUID id) {
-        return documentTemplateMapper.toResponseDto(findOrThrow(id));
+        return documentTemplateMapper.toResponseDto(findOrThrow(id), currentAuthorities());
     }
 
     @Transactional
     public DocumentTemplateResponseDto update(UUID id, DocumentTemplateRequestDto dto) {
+        Set<String> authorities = currentAuthorities();
+        validateUpdateAttributePermissions(dto, authorities);
+
         DocumentTemplate template = findOrThrow(id);
         documentTemplateMapper.updateEntityFromDto(dto, template);
-        return documentTemplateMapper.toResponseDto(documentTemplateRepository.save(template));
+        return documentTemplateMapper.toResponseDto(documentTemplateRepository.save(template), authorities);
     }
 
     @Transactional
@@ -66,5 +80,16 @@ public class DocumentTemplateService {
                 .findByIdAndTenantId(id, tenant.getId())
                 .orElseThrow(() -> new EntityNotFoundException(
                         "Plantilla no encontrada con id: " + id));
+    }
+
+    private void validateCreateAttributePermissions(DocumentTemplateRequestDto dto, Set<String> authorities) {
+        if (dto.name() != null) requireAuthority(authorities, "template:create:name");
+        if (dto.description() != null) requireAuthority(authorities, "template:create:description");
+    }
+
+    private void validateUpdateAttributePermissions(DocumentTemplateRequestDto dto, Set<String> authorities) {
+        if (dto.name() != null) requireAuthority(authorities, "template:update:name");
+        if (dto.description() != null) requireAuthority(authorities, "template:update:description");
+        if (dto.uiSchema() != null) requireAuthority(authorities, "template:update:ui_schema");
     }
 }
