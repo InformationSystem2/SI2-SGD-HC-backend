@@ -39,7 +39,7 @@ public class DicomController {
      * El parámetro {@code patientId} vincula el estudio al paciente.
      */
     @PostMapping(value = "/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @PreAuthorize("hasAuthority('DICOM_CREATE')")
+    @PreAuthorize("hasAuthority('dicom:create')")
     public ResponseEntity<DicomStudyDto> upload(
             @RequestPart("file") MultipartFile file,
             @RequestParam("patientId") UUID patientId) throws IOException {
@@ -61,7 +61,7 @@ public class DicomController {
      * <p>HTTP 200 incluso si todo se omitió — no es un error de cliente.
      */
     @PostMapping(value = "/upload-multi", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @PreAuthorize("hasAuthority('DICOM_CREATE')")
+    @PreAuthorize("hasAuthority('dicom:create')")
     public ResponseEntity<DicomUploadMultiResultDto> uploadMulti(
             @RequestParam("patientId") UUID patientId,
             @RequestPart("files") List<MultipartFile> files) {
@@ -73,7 +73,7 @@ public class DicomController {
     // ── Listado de todos los estudios ─────────────────────────────────────────
 
     @GetMapping("/studies")
-    @PreAuthorize("hasAuthority('DICOM_READ')")
+    @PreAuthorize("hasAuthority('dicom:read')")
     public ResponseEntity<List<DicomStudyDto>> listStudies() {
         List<DicomStudyDto> studies = parserService.listAllStudies().stream()
                 .map(mapper::toStudyDto)
@@ -87,7 +87,7 @@ public class DicomController {
      * Devuelve el árbol completo Study → Series[] → Instance[] por ID de estudio.
      */
     @GetMapping("/studies/{id}")
-    @PreAuthorize("hasAuthority('DICOM_READ')")
+    @PreAuthorize("hasAuthority('dicom:read')")
     public ResponseEntity<DicomStudyDto> getStudy(@PathVariable UUID id) {
         DicomStudy study = parserService.getStudyWithTree(id);
         return ResponseEntity.ok(mapper.toStudyDto(study));
@@ -98,7 +98,7 @@ public class DicomController {
      * Útil para listar el historial de imágenes del paciente.
      */
     @GetMapping("/studies/patient/{patientId}")
-    @PreAuthorize("hasAuthority('DICOM_READ')")
+    @PreAuthorize("hasAuthority('dicom:read')")
     public ResponseEntity<List<DicomStudyDto>> getStudiesByPatient(@PathVariable UUID patientId) {
         List<DicomStudyDto> studies = parserService.listStudiesByPatient(patientId).stream()
                 .map(mapper::toStudyDto)
@@ -117,7 +117,7 @@ public class DicomController {
      * que algunos loaders usan para leer solo la cabecera.
      */
     @GetMapping("/instances/{id}/file")
-    @PreAuthorize("hasAuthority('DICOM_READ')")
+    @PreAuthorize("hasAuthority('dicom:read')")
     public ResponseEntity<Resource> getInstanceFile(@PathVariable UUID id) {
         String filePath = parserService.getFilePath(id);
 
