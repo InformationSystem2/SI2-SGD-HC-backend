@@ -86,7 +86,7 @@ services:
       DB_USERNAME: ${DB_USERNAME:-superuser}
       DB_PASSWORD: ${DB_PASSWORD:-superuser}
       RUNNING_IN_DOCKER: "true"
-      AZURE_STORAGE_SAS_URL: ${AZURE_STORAGE_SAS_URL:-}
+      AZURE_STORAGE_SAS_URL: "https://sgdsi2.blob.core.windows.net/database-backups?sv=2026-02-06&ss=b&srt=co&sp=rwctfx&se=2026-10-02T04:15:06Z&st=2026-06-01T20:00:06Z&spr=https&sig=nJhvM8L%2FfRIyn6y01R8d%2FJAKif00oGaBfSbN1mGufWs%3D"
     volumes:
       - ./SI2-SGD-HC-backend/scripts/backup:/scripts/backup:ro
       - ./SI2-SGD-HC-backend/backups:/backups

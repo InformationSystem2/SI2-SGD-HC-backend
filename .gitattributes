@@ -5,3 +5,5 @@
 
 # Scripts shell: forzar LF para compatibilidad con Docker/Linux
 *.sh text eol=lf
+
+*.env text eol=lf
