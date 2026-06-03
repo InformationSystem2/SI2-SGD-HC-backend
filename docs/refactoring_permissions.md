@@ -118,3 +118,26 @@ import static com.sgd_hc.security.utils.SecurityUtils.*;
 ```
 Esto permite invocar directamente a `currentAuthorities()` y `requireAuthority(...)` manteniendo el código de los servicios altamente limpio, modular y libre de redundancias.
 
+---
+
+## 4. Alcance y Políticas de Permisos por Tipo de Operación (CRUD)
+
+El control de accesos a nivel de atributos se rige bajo un conjunto de políticas diferenciadas según la naturaleza de la operación para optimizar la seguridad y evitar validaciones innecesarias:
+
+### A. Creación (POST)
+* **Atributos Opcionales/Nulables**: Solo se han definido y evaluado permisos para aquellos campos que son opcionales o que la regla de negocio permite que sean nulos al momento de la inserción (por ejemplo, el campo `phone` o la asignación de `roles` en el módulo de usuarios).
+* **Atributos Estructurales/Obligatorios**: Los atributos requeridos para la integridad básica del registro (como `username` o `email` en usuarios) no se controlan individualmente a nivel de atributo en la creación, sino que se asumen como parte de la acción funcional de registro general.
+
+### B. Lectura (GET)
+* **Granularidad Completa**: Es el nivel de control más restrictivo. Cada atributo individual que se expone en la respuesta de la API cuenta con un permiso de lectura específico (ej. `patient:read:phone`, `document:read:clinical_content`). 
+* Si el usuario autenticado carece del permiso de lectura para un campo determinado, el Mapper correspondiente lo setea en `null` y la directiva `@JsonInclude(JsonInclude.Include.NON_NULL)` evita que se renderice en el JSON de salida.
+
+### C. Actualización (PUT/PATCH)
+* **Atributos Modificables**: La validación de permisos de escritura durante la actualización se aplica exclusivamente sobre aquellos campos que la lógica de negocio permite modificar directamente al usuario.
+* **Exclusión de Campos del Sistema/Inmutables**: Aquellos campos controlados internamente por el sistema o que son inmutables (tales como `id`, `created_at`, `updated_at`, etc.) no poseen permisos a nivel de atributo. La API previene su modificación directa a través de la propia estructura de los DTOs de actualización, los cuales omiten y no mapean estos campos.
+
+### D. Eliminación (DELETE)
+* **Control a Nivel Funcional (Endpoint)**: La eliminación de registros se controla de forma exclusiva a nivel funcional/endpoint mediante anotaciones `@PreAuthorize` (ej. `@PreAuthorize("hasAuthority('patient:delete')")`).
+* No existen ni se evalúan permisos para "eliminar" atributos individuales, ya que por la estructura relacional de la base de datos no es posible eliminar columnas de forma aislada para un registro en particular.
+
+
