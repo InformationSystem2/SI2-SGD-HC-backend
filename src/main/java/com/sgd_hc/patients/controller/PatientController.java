@@ -23,31 +23,31 @@ public class PatientController {
     private final PatientService patientService;
 
     @PostMapping
-    @PreAuthorize("hasAuthority('PATIENT_CREATE')")
+    @PreAuthorize("hasAuthority('patient:create')")
     public ResponseEntity<PatientResponseDto> create(@RequestBody PatientCreateDto dto) {
         return new ResponseEntity<>(patientService.createPatient(dto), HttpStatus.CREATED);
     }
 
     @GetMapping
-    @PreAuthorize("hasAuthority('PATIENT_READ')")
+    @PreAuthorize("hasAuthority('patient:read')")
     public ResponseEntity<List<PatientResponseDto>> getAll() {
         return ResponseEntity.ok(patientService.getAllPatients());
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasAuthority('PATIENT_READ')")
+    @PreAuthorize("hasAuthority('patient:read')")
     public ResponseEntity<PatientResponseDto> getById(@PathVariable UUID id) {
         return ResponseEntity.ok(patientService.getPatientById(id));
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasAuthority('PATIENT_UPDATE')")
+    @PreAuthorize("hasAuthority('patient:update')")
     public ResponseEntity<PatientResponseDto> update(@PathVariable UUID id, @RequestBody PatientUpdateDto dto) {
         return ResponseEntity.ok(patientService.updatePatient(id, dto));
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasAuthority('PATIENT_DELETE')")
+    @PreAuthorize("hasAuthority('patient:delete')")
     public ResponseEntity<Void> delete(@PathVariable UUID id) {
         patientService.deletePatient(id);
         return ResponseEntity.noContent().build();

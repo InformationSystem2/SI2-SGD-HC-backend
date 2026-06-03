@@ -1,6 +1,7 @@
 package com.sgd_hc.patients.mapper;
 
 import org.springframework.stereotype.Component;
+import java.util.Set;
 
 import com.sgd_hc.patients.dto.PatientCreateDto;
 import com.sgd_hc.patients.dto.PatientResponseDto;
@@ -11,6 +12,18 @@ import com.sgd_hc.users.entity.DocumentType;
 
 @Component
 public class PatientMapper {
+
+    private static final Set<String> ALL_READ_AUTHORITIES = Set.of(
+            "patient:read:id",
+            "patient:read:document_type",
+            "patient:read:document_number",
+            "patient:read:first_name",
+            "patient:read:last_name",
+            "patient:read:birth_date",
+            "patient:read:gender",
+            "patient:read:phone",
+            "patient:read:address"
+    );
 
     public Patient toEntity(PatientCreateDto dto) {
         if (dto.gender() == null || dto.gender().isBlank())
@@ -39,16 +52,20 @@ public class PatientMapper {
     }
 
     public PatientResponseDto toResponseDto(Patient patient) {
+        return toResponseDto(patient, ALL_READ_AUTHORITIES);
+    }
+
+    public PatientResponseDto toResponseDto(Patient patient, Set<String> userAuthorities) {
         return PatientResponseDto.builder()
-                .id(patient.getId())
-                .documentType(patient.getDocumentType() != null ? patient.getDocumentType().name() : null)
-                .documentNumber(patient.getDocumentNumber())
-                .firstName(patient.getFirstName())
-                .lastName(patient.getLastName())
-                .phone(patient.getPhone())
-                .address(patient.getAddress())
-                .gender(patient.getGender() != null ? patient.getGender().name() : null)
-                .birthDate(patient.getBirthDate())
+                .id(userAuthorities.contains("patient:read:id") ? patient.getId() : null)
+                .documentType(userAuthorities.contains("patient:read:document_type") && patient.getDocumentType() != null ? patient.getDocumentType().name() : null)
+                .documentNumber(userAuthorities.contains("patient:read:document_number") ? patient.getDocumentNumber() : null)
+                .firstName(userAuthorities.contains("patient:read:first_name") ? patient.getFirstName() : null)
+                .lastName(userAuthorities.contains("patient:read:last_name") ? patient.getLastName() : null)
+                .phone(userAuthorities.contains("patient:read:phone") ? patient.getPhone() : null)
+                .address(userAuthorities.contains("patient:read:address") ? patient.getAddress() : null)
+                .gender(userAuthorities.contains("patient:read:gender") && patient.getGender() != null ? patient.getGender().name() : null)
+                .birthDate(userAuthorities.contains("patient:read:birth_date") ? patient.getBirthDate() : null)
                 .build();
     }
 }
