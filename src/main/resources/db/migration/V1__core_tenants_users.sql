@@ -1,9 +1,6 @@
 -- =============================================================================
 -- V1 — INFRAESTRUCTURA CORE: Tenants, Usuarios, Roles, Permisos, Pacientes
 -- =============================================================================
-CREATE EXTENSION IF NOT EXISTS "pgcrypto" SCHEMA public;
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp" SCHEMA public;
-
 
 -- ── Tipos enumerados ─────────────────────────────────────────────────────────
 
