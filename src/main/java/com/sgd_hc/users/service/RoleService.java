@@ -33,7 +33,7 @@ import lombok.RequiredArgsConstructor;
 
 @Service
 @RequiredArgsConstructor
-public class RoleService implements AuditableService<UUID, Role> {
+public class RoleService implements AuditableService<Long, Role> {
 
     private final RoleRepository        roleRepository;
     private final PermissionRepository  permissionRepository;
@@ -124,7 +124,7 @@ public class RoleService implements AuditableService<UUID, Role> {
     }
 
     @Override
-    public Role getEntity(UUID id) {
+    public Role getEntity(Long id) {
         return findRoleOrThrow(id);
     }
 

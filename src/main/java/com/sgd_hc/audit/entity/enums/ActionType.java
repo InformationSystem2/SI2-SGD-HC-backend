@@ -1,4 +1,4 @@
-package com.sgd_hc.audit.enums;
+package com.sgd_hc.audit.entity.enums;
 
 public enum ActionType {
     CREATE,

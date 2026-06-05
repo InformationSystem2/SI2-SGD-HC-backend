@@ -21,7 +21,7 @@ import lombok.RequiredArgsConstructor;
 
 @Service
 @RequiredArgsConstructor
-public class PermissionService implements AuditableService<UUID, Permission> {
+public class PermissionService implements AuditableService<Long, Permission> {
 
     private final PermissionRepository permissionRepository;
     private final PermissionMapper permissionMapper;
@@ -79,7 +79,7 @@ public class PermissionService implements AuditableService<UUID, Permission> {
     }
 
     @Override
-    public Permission getEntity(UUID id) {
+    public Permission getEntity(Long id) {
         return findPermissionOrThrow(id);
     }
 
