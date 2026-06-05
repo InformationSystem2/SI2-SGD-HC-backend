@@ -68,9 +68,14 @@ public class TenantService implements AuditableService<Object, Tenant> {
     private final ObjectMapper objectMapper;
 
     private final PasswordEncoder passwordEncoder;
+    private final org.springframework.data.redis.core.RedisTemplate<String, String> redisTemplate;
+    private final com.sgd_hc.config.mail.EmailService emailService;
 
     @Value("${app.seed.system.slug}")
     private String systemSlug;
+
+    @Value("${spring.profiles.active:prod}")
+    private String activeProfile;
 
     // ── PÚBLICO (Registro y Pago) ─────────────────────────────────
 
@@ -79,6 +84,14 @@ public class TenantService implements AuditableService<Object, Tenant> {
         var sessionOpt = sessionService.getSession(dto.sessionToken());
         if (sessionOpt.isEmpty()) {
             throw new IllegalArgumentException("Sesión de registro expirada o inválida. Por favor, inicie nuevamente.");
+        }
+
+        // Validate code from Redis
+        String redisKey = "verification_code:" + dto.adminEmail();
+        String savedCode = redisTemplate.opsForValue().get(redisKey);
+        
+        if (savedCode == null || !savedCode.equals(dto.validationCode())) {
+            throw new IllegalArgumentException("El código de verificación es incorrecto o ha expirado.");
         }
 
         var sessionData = sessionOpt.get();
@@ -97,6 +110,9 @@ public class TenantService implements AuditableService<Object, Tenant> {
 
         sessionService.saveRegistrationData(dto.sessionToken(), regData);
 
+        // Borrar el código de redis ya que fue validado exitosamente
+        redisTemplate.delete(redisKey);
+
         return Map.of(
                 "status", "REGISTRATION_SAVED",
                 "message", "Datos guardados. Proceda al pago."
@@ -111,6 +127,25 @@ public class TenantService implements AuditableService<Object, Tenant> {
                 token,
                 "Sesión iniciada. Proceda a registrar los datos de su clínica."
         );
+    }
+
+    public SendCodeResponseDto sendVerificationCode(SendCodeRequestDto dto) {
+        String email = dto.getEmail();
+        String code = String.format("%06d", new java.util.Random().nextInt(999999));
+        String redisKey = "verification_code:" + email;
+
+        redisTemplate.opsForValue().set(redisKey, code, java.time.Duration.ofMinutes(10));
+
+        if ("dev".equalsIgnoreCase(activeProfile)) {
+            log.info("Entorno dev: Código generado para {}: {}", email, code);
+            return new SendCodeResponseDto("Código generado para pruebas", code);
+        } else {
+            boolean sent = emailService.sendVerificationCode(email, code);
+            if (!sent) {
+                throw new IllegalStateException("Error al enviar el correo de verificación. Intente nuevamente.");
+            }
+            return new SendCodeResponseDto("Código enviado exitosamente", null);
+        }
     }
 
     @Transactional

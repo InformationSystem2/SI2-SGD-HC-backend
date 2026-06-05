@@ -35,6 +35,18 @@ public class AuthController {
         return ResponseEntity.ok(authService.refreshToken(request));
     }
 
+    @PostMapping("/public/forgot-password")
+    public ResponseEntity<com.sgd_hc.tenants.dto.SendCodeResponseDto> forgotPassword(
+            @Valid @RequestBody com.sgd_hc.security.dto.ForgotPasswordRequestDto request) {
+        return ResponseEntity.ok(authService.sendPasswordRecoveryCode(request));
+    }
+
+    @PostMapping("/public/reset-password")
+    public ResponseEntity<java.util.Map<String, String>> resetPassword(
+            @Valid @RequestBody com.sgd_hc.security.dto.VerifyRecoveryCodeRequestDto request) {
+        return ResponseEntity.ok(authService.resetPassword(request));
+    }
+
     @GetMapping("/me/permissions")
     public ResponseEntity<Collection<String>> getMyPermissions(@AuthenticationPrincipal UserDetails userDetails) {
         if (userDetails == null) {
