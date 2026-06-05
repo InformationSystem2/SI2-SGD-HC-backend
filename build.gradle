@@ -68,6 +68,8 @@ dependencies {
 
     implementation 'net.datafaker:datafaker:2.4.2'
     implementation 'com.azure:azure-storage-blob:12.29.0'
+
+    implementation 'com.google.cloud:google-cloud-logging-logback:0.131.4-alpha'
 }
 
 tasks.named('test') {
