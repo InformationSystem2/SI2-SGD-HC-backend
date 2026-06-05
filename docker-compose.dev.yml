@@ -23,6 +23,29 @@ services:
       retries: 5
     restart: unless-stopped
 
+  # PostgreSQL Audit Database
+  postgres-audit:
+    image: postgres:18-alpine
+    container_name: sgd-hc-postgres-audit
+    env_file:
+      - ./SI2-SGD-HC-backend/.env
+    environment:
+      POSTGRES_DB: ${DB_NAME_AUDIT:-sgd_hc_audit}
+      POSTGRES_USER: ${DB_USERNAME_AUDIT:-superuser}
+      POSTGRES_PASSWORD: ${DB_PASSWORD_AUDIT:-superuser}
+    volumes:
+      - postgres_audit_data:/var/lib/postgresql
+    ports:
+      - "5434:5432"
+    networks:
+      - sgd-hc-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME_AUDIT:-superuser} -d ${DB_NAME_AUDIT:-sgd_hc_audit}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
   # Backend Service
   backend:
     image: sgd-hc-backend:dev
@@ -38,6 +61,11 @@ services:
       DB_NAME: ${DB_NAME:-sgd_hc}
       DB_USERNAME: ${DB_USERNAME:-superuser}
       DB_PASSWORD: ${DB_PASSWORD:-superuser}
+      DB_URL_AUDIT: jdbc:postgresql://postgres-audit:5432/${DB_NAME_AUDIT:-sgd_hc_audit}
+      DB_USERNAME_AUDIT: ${DB_USERNAME_AUDIT:-superuser}
+      DB_PASSWORD_AUDIT: ${DB_PASSWORD_AUDIT:-superuser}
+      AUDIT_ENCRYPTION_KEY: ${AUDIT_ENCRYPTION_KEY:-Lk+JyPYKgx7Ooxz6kYCU1/A7pZOQb+iz0B4qc3qHHgg=}
+      AUDIT_INTEGRITY_KEY: ${AUDIT_INTEGRITY_KEY:-SZE2vlhEUJVF8svvD4hG0xigvh1MML2WRGB2z7bimkZvsPqpPWkNzJk2oZXTKfkp}
       SPRING_PROFILES_ACTIVE: dev
     ports:
       - "8081:8080"
@@ -49,6 +77,8 @@ services:
       - sgd-hc-net
     depends_on:
       postgres:
+        condition: service_healthy
+      postgres-audit:
         condition: service_healthy
     restart: unless-stopped
 
@@ -80,6 +110,8 @@ networks:
 
 volumes:
   postgres_data:
+    driver: local
+  postgres_audit_data:
     driver: local
   gradle_cache:
     driver: local
