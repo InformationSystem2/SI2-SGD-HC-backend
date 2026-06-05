@@ -46,6 +46,21 @@ services:
       retries: 5
     restart: unless-stopped
 
+  # Valkey / Redis
+  valkey:
+    image: valkey/valkey:8-alpine
+    container_name: sgd-hc-valkey
+    ports:
+      - "6378:6379"
+    networks:
+      - sgd-hc-net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
   # Backend Service
   backend:
     image: sgd-hc-backend:dev
@@ -67,6 +82,7 @@ services:
       AUDIT_ENCRYPTION_KEY: ${AUDIT_ENCRYPTION_KEY:-Lk+JyPYKgx7Ooxz6kYCU1/A7pZOQb+iz0B4qc3qHHgg=}
       AUDIT_INTEGRITY_KEY: ${AUDIT_INTEGRITY_KEY:-SZE2vlhEUJVF8svvD4hG0xigvh1MML2WRGB2z7bimkZvsPqpPWkNzJk2oZXTKfkp}
       SPRING_PROFILES_ACTIVE: dev
+      REDIS_URL: redis://valkey:6379
     ports:
       - "8081:8080"
     volumes:
@@ -79,6 +95,34 @@ services:
       postgres:
         condition: service_healthy
       postgres-audit:
+        condition: service_healthy
+      valkey:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # AI Service (FastAPI)
+  ai-service:
+    image: sgd-hc-ai-service:dev
+    build:
+      context: ./SI2-SGD-HC-ai-service
+      dockerfile: Dockerfile
+    container_name: sgd-hc-ai-service
+    env_file:
+      - ./SI2-SGD-HC-ai-service/.env
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/${DB_NAME:-sgd_hc}
+      DB_NAME: ${DB_NAME:-sgd_hc}
+      DB_USERNAME: ${DB_USERNAME:-superuser}
+      DB_PASSWORD: ${DB_PASSWORD:-superuser}
+      PORT: 8001
+    ports:
+      - "8001:8001"
+    volumes:
+      - ./SI2-SGD-HC-ai-service:/app
+    networks:
+      - sgd-hc-net
+    depends_on:
+      postgres:
         condition: service_healthy
     restart: unless-stopped
 

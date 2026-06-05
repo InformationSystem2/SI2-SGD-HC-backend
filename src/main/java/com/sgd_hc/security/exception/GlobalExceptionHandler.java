@@ -48,6 +48,14 @@ public class GlobalExceptionHandler {
         return errorBody(HttpStatus.BAD_REQUEST, "Validation Error", message, request);
     }
 
+    @ExceptionHandler(org.springframework.web.method.annotation.MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<Object> handleTypeMismatch(org.springframework.web.method.annotation.MethodArgumentTypeMismatchException ex, WebRequest request) {
+        String typeName = ex.getRequiredType() != null ? ex.getRequiredType().getSimpleName() : "desconocido";
+        String message = String.format("El parámetro '%s' debe ser un %s válido. Valor recibido: '%s'", ex.getName(), typeName, ex.getValue());
+        return errorBody(HttpStatus.BAD_REQUEST, "Invalid Parameter Type", message, request);
+    }
+
+
     @ExceptionHandler(EmptyResultDataAccessException.class)
     public ResponseEntity<Object> handleEmptyResultDataAccessException(org.springframework.dao.EmptyResultDataAccessException ex, WebRequest request) {
         return errorBody(HttpStatus.NOT_FOUND, "Not Found",

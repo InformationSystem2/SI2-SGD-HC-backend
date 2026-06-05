@@ -90,7 +90,9 @@ tasks.named('bootRun') {
         project.envVars.each { key, val ->
             // Quitar comillas si están presentes en .env
             def cleanVal = val.replaceAll(/^"|"$/, "")
-            environment key, cleanVal
+            if (System.getenv(key) == null) {
+                environment key, cleanVal
+            }
         }
     }
 }
