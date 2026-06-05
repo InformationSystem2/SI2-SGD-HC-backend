@@ -1,5 +1,8 @@
 package com.sgd_hc.tenants.service;
 
+import com.sgd_hc.audit.annotation.Auditable;
+import com.sgd_hc.audit.entity.enums.ActionType;
+
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.RedisTemplate;
@@ -21,6 +24,7 @@ public class TenantRevocationService {
 
     private final RedisTemplate<String, String> redisTemplate;
 
+    @Auditable(resourceType = "TENANT_REVOCATION", actionType = ActionType.UPDATE)
     public void revokeAllTokensForTenant(UUID tenantId, Instant suspendedAt) {
         String key = suspendedKey(tenantId);
         redisTemplate.opsForValue().set(key, suspendedAt.toString());
@@ -30,6 +34,7 @@ public class TenantRevocationService {
                 tenantId, suspendedAt);
     }
 
+    @Auditable(resourceType = "TENANT_REVOCATION", actionType = ActionType.UPDATE)
     public void reactivateTenant(UUID tenantId) {
         String key = suspendedKey(tenantId);
         redisTemplate.delete(key);
@@ -60,6 +65,7 @@ public class TenantRevocationService {
         return Boolean.TRUE.equals(redisTemplate.hasKey(revokedKey));
     }
 
+    @Auditable(resourceType = "TENANT_REVOCATION", actionType = ActionType.UPDATE)
     public void revokeToken(String tokenJti, UUID tenantId, long expirationEpoch) {
         String key = revokedKey(tenantId, tokenJti);
         long ttlSeconds = expirationEpoch - Instant.now().getEpochSecond();

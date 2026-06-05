@@ -1,5 +1,9 @@
 package com.sgd_hc.tenants.service;
 
+import com.sgd_hc.audit.annotation.Auditable;
+import com.sgd_hc.audit.entity.enums.ActionType;
+import com.sgd_hc.audit.service.AuditableService;
+
 import com.sgd_hc.documents.service.FileStorageService;
 import com.sgd_hc.tenants.entity.Tenant;
 import com.sgd_hc.tenants.repository.TenantRepository;
@@ -18,7 +22,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 @Service
 @RequiredArgsConstructor
-public class BrandingService {
+public class BrandingService implements AuditableService<String, Map<String, Object>> {
 
     private final TenantRepository tenantRepository;
     private final ObjectMapper objectMapper;
@@ -109,6 +113,7 @@ public class BrandingService {
     }
 
     @Transactional
+    @Auditable(resourceType = "BRANDING", actionType = ActionType.UPDATE, idParamName = "slug")
     public Map<String, Object> updateBrandingBySlug(String slug, Map<String, Object> brandingPayload) {
         Tenant tenant = tenantRepository.findBySlug(slug)
                 .orElseThrow(() -> new IllegalArgumentException("Tenant no encontrado: " + slug));
@@ -122,6 +127,7 @@ public class BrandingService {
     }
 
     @Transactional
+    @Auditable(resourceType = "BRANDING_LOGO", actionType = ActionType.UPDATE, idParamName = "slug")
     public Map<String, Object> uploadLogo(String slug, MultipartFile file) throws IOException {
         fileStorageService.validateLogo(file);
         Tenant t = tenantRepository.findBySlug(slug)
@@ -137,4 +143,14 @@ public class BrandingService {
         result.put("url", url);
         return result;
     }
+
+    @Override
+    public Map<String, Object> getEntity(String slug) {
+        return getBrandingByTenantSlug(slug);
+    }
+
+    @Override
+    public Map<String, Object> toAuditMap(Map<String, Object> entity) {
+        return entity;
+    }    
 }

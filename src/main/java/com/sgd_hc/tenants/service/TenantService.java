@@ -1,5 +1,9 @@
 package com.sgd_hc.tenants.service;
 
+import com.sgd_hc.audit.annotation.Auditable;
+import com.sgd_hc.audit.entity.enums.ActionType;
+import com.sgd_hc.audit.service.AuditableService;
+
 import com.sgd_hc.tenants.dto.*;
 import com.sgd_hc.tenants.entity.*;
 import com.sgd_hc.tenants.repository.TenantRepository;
@@ -51,7 +55,7 @@ import java.util.UUID;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class TenantService {
+public class TenantService implements AuditableService<Object, Tenant> {
 
     private final TenantRepository tenantRepository;
     private final RoleRepository roleRepository;
@@ -110,6 +114,7 @@ public class TenantService {
     }
 
     @Transactional
+    @Auditable(resourceType = "TENANT", actionType = ActionType.CREATE, idParamName = "slug")
     public Map<String, Object> processPayment(TenantPaymentRequestDto dto) {
         var sessionOpt = sessionService.getSession(dto.sessionToken());
         if (sessionOpt.isEmpty()) {
@@ -221,6 +226,7 @@ public class TenantService {
     }
 
     @Transactional
+    @Auditable(resourceType = "TENANT", actionType = ActionType.UPDATE, idParamName = "slug")
     public TenantInfoDto updateTenantBasicInfo(String slug, Map<String, Object> data) {
         Set<String> authorities = currentAuthorities();
         validateUpdateBasicInfoPermissions(data, authorities);
@@ -260,6 +266,7 @@ public class TenantService {
     }
 
     @Transactional
+    @Auditable(resourceType = "TENANT_SETTINGS", actionType = ActionType.UPDATE, idParamName = "slug")
     public Map<String, Object> updateSettingsBySlug(String slug, Map<String, Object> newSettings) {
         requireAuthority(currentAuthorities(), "tenant:update:settings");
         Tenant tenant = findTenantBySlugOrThrow(slug);
@@ -411,6 +418,7 @@ public class TenantService {
     }
 
     @Transactional
+    @Auditable(resourceType = "TENANT", actionType = ActionType.UPDATE, idParamName = "id")
     public TenantDetailDto suspendTenant(UUID id) {
         Tenant tenant = findOrThrow(id);
 
@@ -429,6 +437,7 @@ public class TenantService {
     }
 
     @Transactional
+    @Auditable(resourceType = "TENANT", actionType = ActionType.UPDATE, idParamName = "id")
     public TenantDetailDto reactivateTenant(UUID id) {
         Tenant tenant = findOrThrow(id);
 
@@ -447,6 +456,7 @@ public class TenantService {
     }
 
     @Transactional
+    @Auditable(resourceType = "TENANT", actionType = ActionType.DELETE, idParamName = "id")
     public void hardDeleteTenant(UUID id, String confirmText) {
         Tenant tenant = findOrThrow(id);
 
@@ -487,6 +497,7 @@ public class TenantService {
     // ── SUSCRIPCIÓN: Renovación y Cambio de Plan ─────────────────────────────
 
     @Transactional
+    @Auditable(resourceType = "TENANT_SUBSCRIPTION", actionType = ActionType.UPDATE, idParamName = "slug")
     public RenewSubscriptionResponseDto renewSubscription(String slug, String plan) {
         Tenant tenant = tenantRepository.findBySlug(slug)
                 .orElseThrow(() -> new IllegalArgumentException("Tenant no encontrado: " + slug));
@@ -510,6 +521,7 @@ public class TenantService {
     }
 
     @Transactional
+    @Auditable(resourceType = "TENANT_SUBSCRIPTION", actionType = ActionType.UPDATE, idParamName = "slug")
     public ChangePlanResponseDto changePlan(String slug, String newPlan) {
         Tenant tenant = tenantRepository.findBySlug(slug)
                 .orElseThrow(() -> new IllegalArgumentException("Tenant no encontrado: " + slug));
@@ -642,5 +654,25 @@ public class TenantService {
         if (data.containsKey("logoUrl")) requireAuthority(authorities, "tenant:update:logo_url");
     }
 
+    @Override
+    public Tenant getEntity(Object id) {
+        if (id instanceof UUID) return findOrThrow((UUID) id);
+        if (id instanceof String) return findTenantBySlugOrThrow((String) id);
+        return null;
+    }
 
+    @Override //mover a mapper
+    public Map<String, Object> toAuditMap(Tenant entity) {
+        Map<String, Object> map = new HashMap<>();
+        map.put("id", entity.getId());
+        map.put("name", entity.getName());
+        map.put("slug", entity.getSlug());
+        map.put("email", entity.getEmail());
+        map.put("phone", entity.getPhone());
+        map.put("address", entity.getAddress());
+        map.put("subscriptionPlan", entity.getSubscriptionPlan());
+        map.put("subscriptionStatus", entity.getSubscriptionStatus());
+        map.put("settings", entity.getSettings());
+        return map;
+    }
 }

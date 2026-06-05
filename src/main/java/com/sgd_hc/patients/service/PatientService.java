@@ -1,7 +1,12 @@
 package com.sgd_hc.patients.service;
 
+import com.sgd_hc.audit.annotation.Auditable;
+import com.sgd_hc.audit.entity.enums.ActionType;
+import com.sgd_hc.audit.service.AuditableService;
+
 import java.util.List;
 import java.util.Set;
+import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -25,13 +30,14 @@ import lombok.RequiredArgsConstructor;
 
 @Service
 @RequiredArgsConstructor
-public class PatientService {
+public class PatientService implements AuditableService<UUID, Patient> {
 
     private final PatientRepository    patientRepository;
     private final PatientMapper        patientMapper;
     private final TenantResolverService tenantResolverService;
 
     @Transactional
+    @Auditable(resourceType = "PATIENT", actionType = ActionType.CREATE)
     public PatientResponseDto createPatient(PatientCreateDto dto) {
         Set<String> authorities = currentAuthorities();
         validateCreateAttributePermissions(dto, authorities);
@@ -42,6 +48,7 @@ public class PatientService {
     }
 
     @Transactional(readOnly = true)
+    @Auditable(resourceType = "PATIENT", actionType = ActionType.READ)
     public List<PatientResponseDto> getAllPatients() {
         Set<String> authorities = currentAuthorities();
         return patientRepository.findAll().stream()
@@ -50,11 +57,13 @@ public class PatientService {
     }
 
     @Transactional(readOnly = true)
+    @Auditable(resourceType = "PATIENT", actionType = ActionType.READ, idParamName = "id")
     public PatientResponseDto getPatientById(UUID id) {
         return patientMapper.toResponseDto(findOrThrow(id), currentAuthorities());
     }
 
     @Transactional
+    @Auditable(resourceType = "PATIENT", actionType = ActionType.UPDATE, idParamName = "id")
     public PatientResponseDto updatePatient(UUID id, PatientUpdateDto dto) {
         Set<String> authorities = currentAuthorities();
         validateUpdateAttributePermissions(dto, authorities);
@@ -65,6 +74,7 @@ public class PatientService {
     }
 
     @Transactional
+    @Auditable(resourceType = "PATIENT", actionType = ActionType.DELETE, idParamName = "id")
     public void deletePatient(UUID id) {
         patientRepository.deleteById(id);
     }
@@ -92,5 +102,23 @@ public class PatientService {
         if (dto.gender() != null) requireAuthority(authorities, "patient:update:gender");
         if (dto.birthDate() != null) requireAuthority(authorities, "patient:update:birth_date");
     }
+
+    @Override
+    public Patient getEntity(UUID id) {
+        return findOrThrow(id);
+    }
+
+    @Override
+    public Map<String, Object> toAuditMap(Patient entity) {
+        return patientMapper.toAuditMap(entity);
+    }
+
+    @Override
+    public Map<String, Object> toAuditMapFromResult(Object result) {
+        if (result instanceof PatientResponseDto dto) {
+            return patientMapper.toAuditMapFromDto(dto);
+        }
+        return Map.of();
+    }    
 
 }

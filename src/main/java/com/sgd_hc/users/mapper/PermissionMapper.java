@@ -7,6 +7,9 @@ import com.sgd_hc.users.dto.PermissionResponseDto;
 import com.sgd_hc.users.dto.PermissionUpdateDto;
 import com.sgd_hc.users.entity.Permission;
 
+import java.util.HashMap;
+import java.util.Map;
+
 @Component
 public class PermissionMapper {
 
@@ -34,5 +37,16 @@ public class PermissionMapper {
                 .description(entity.getDescription())
                 .isActive(entity.getIsActive())
                 .build();
+    }
+
+    public Map<String, Object> toAuditMap(Permission entity) {
+        Map<String, Object> map = new HashMap<>();
+        map.put("id", entity.getId());
+        map.put("name", entity.getName());
+        map.put("module", entity.getModule());
+        map.put("action", entity.getAction());
+        map.put("description", entity.getDescription());
+        map.put("isActive", entity.getIsActive());
+        return map;
     }
 }

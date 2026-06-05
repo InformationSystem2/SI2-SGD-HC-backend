@@ -5,6 +5,7 @@ import com.sgd_hc.documents.dto.DocumentTemplateResponseDto;
 import com.sgd_hc.documents.entity.DocumentTemplate;
 import org.springframework.stereotype.Component;
 
+import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -47,5 +48,15 @@ public class DocumentTemplateMapper {
                           .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue))
                         : null
         );
+    }
+
+    public Map<String, Object> toAuditMap(DocumentTemplate entity) {
+        Map<String, Object> map = new HashMap<>();
+        map.put("id", entity.getId());
+        map.put("name", entity.getName());
+        map.put("description", entity.getDescription());
+        map.put("uiSchema", entity.getUiSchema());
+        map.put("isActive", entity.getIsActive());
+        return map;
     }
 }

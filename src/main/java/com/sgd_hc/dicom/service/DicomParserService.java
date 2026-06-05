@@ -6,6 +6,8 @@ import com.sgd_hc.dicom.entity.DicomInstance;
 import com.sgd_hc.dicom.entity.DicomSeries;
 import com.sgd_hc.dicom.entity.DicomStudy;
 import com.sgd_hc.dicom.entity.Modality;
+import com.sgd_hc.audit.annotation.Auditable;
+import com.sgd_hc.audit.entity.enums.ActionType;
 import com.sgd_hc.dicom.mapper.DicomMapper;
 import com.sgd_hc.dicom.repository.DicomInstanceRepository;
 import com.sgd_hc.dicom.repository.DicomSeriesRepository;
@@ -298,6 +300,7 @@ public class DicomParserService {
     // —— Consultas públicas ———————————————————————————————————————————
 
     @Transactional(readOnly = true)
+    @Auditable(resourceType = "DICOM_STUDY", actionType = ActionType.READ, idParamName = "studyId")
     public DicomStudy getStudyWithTree(UUID studyId) {
         DicomStudy study = studyRepository.findByIdWithSeries(studyId)
                 .orElseThrow(() -> new NoSuchElementException(
@@ -307,6 +310,7 @@ public class DicomParserService {
     }
 
     @Transactional(readOnly = true)
+    @Auditable(resourceType = "DICOM_STUDY", actionType = ActionType.READ)
     public List<DicomStudy> listAllStudies() {
         List<DicomStudy> studies = studyRepository.findAllWithSeries();
         studies.forEach(seriesRepository::findByStudyWithInstances);
@@ -314,6 +318,7 @@ public class DicomParserService {
     }
 
     @Transactional(readOnly = true)
+    @Auditable(resourceType = "DICOM_STUDY", actionType = ActionType.READ)
     public List<DicomStudy> listStudiesByPatient(UUID patientId) {
         List<DicomStudy> studies = studyRepository.findByPatientIdOrderByCreatedAtDesc(patientId);
         studies.forEach(s -> seriesRepository.findByStudyWithInstances(s));
@@ -321,6 +326,7 @@ public class DicomParserService {
     }
 
     @Transactional(readOnly = true)
+    @Auditable(resourceType = "DICOM_INSTANCE", actionType = ActionType.READ, idParamName = "instanceId")
     public String getFilePath(UUID instanceId) {
         return instanceRepository.findById(instanceId)
                 .map(DicomInstance::getFilePath)

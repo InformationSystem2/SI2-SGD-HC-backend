@@ -10,6 +10,8 @@ import com.sgd_hc.patients.entity.Patient;
 import com.sgd_hc.users.entity.User;
 import org.springframework.stereotype.Component;
 
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.UUID;
 
 @Component
@@ -69,5 +71,26 @@ public class DocumentMapper {
                 userAuthorities.contains("document:read:expiry_date") ? doc.getExpiryDate() : null,
                 userAuthorities.contains("document:read:file_url") ? doc.getFileUrl() : null,
                 userAuthorities.contains("document:read:is_external_source") ? doc.getIsExternalSource() : null);
+    }
+
+    public Map<String, Object> toAuditMap(Document entity) {
+        Map<String, Object> map = new LinkedHashMap<>();
+        map.put("id", entity.getId().toString());
+        map.put("status", entity.getStatus() != null ? entity.getStatus().name() : null);
+        map.put("isExternalSource", entity.getIsExternalSource());
+        map.put("issueDate", entity.getIssueDate() != null ? entity.getIssueDate().toString() : null);
+        map.put("expiryDate", entity.getExpiryDate() != null ? entity.getExpiryDate().toString() : null);
+        map.put("versionNumber", entity.getVersionNumber());
+        map.put("patientId", entity.getPatient() != null ? entity.getPatient().getId().toString() : null);
+        return map;
+    }
+
+    public Map<String, Object> toAuditMapFromDto(DocumentResponseDto dto) {
+        Map<String, Object> map = new LinkedHashMap<>();
+        map.put("id", dto.id().toString());
+        map.put("status", dto.status() != null ? dto.status().name() : null);
+        map.put("issueDate", dto.issueDate() != null ? dto.issueDate().toString() : null);
+        map.put("expiryDate", dto.expiryDate() != null ? dto.expiryDate().toString() : null);
+        return map;
     }
 }

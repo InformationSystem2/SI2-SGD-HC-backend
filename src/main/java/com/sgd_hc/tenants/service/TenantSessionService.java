@@ -1,5 +1,7 @@
 package com.sgd_hc.tenants.service;
 
+import com.sgd_hc.audit.annotation.Auditable;
+import com.sgd_hc.audit.entity.enums.ActionType;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -37,6 +39,7 @@ public class TenantSessionService {
         return mapper;
     }
 
+    @Auditable(resourceType = "TENANT_SESSION", actionType = ActionType.CREATE)
     public String createSession(String plan) {
         String token = UUID.randomUUID().toString();
         Instant expiresAt = Instant.now().plusSeconds(SESSION_TTL_MINUTES * 60);
@@ -123,7 +126,7 @@ public class TenantSessionService {
         }
     }
 
-    @Getter
+    @Getter //mover a dto y mapper
     public static class RegistrationData {
         private String tenantName;
         private String adminFirstName;
