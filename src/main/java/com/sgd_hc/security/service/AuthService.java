@@ -1,5 +1,9 @@
 package com.sgd_hc.security.service;
 
+import com.sgd_hc.audit.annotation.Auditable;
+import com.sgd_hc.audit.entity.enums.ActionType;
+import com.sgd_hc.audit.aspect.AuditAspect;
+
 import com.sgd_hc.users.entity.User;
 import com.sgd_hc.users.repository.UserRepository;
 import com.sgd_hc.security.dto.AuthRequestDto;
@@ -20,6 +24,7 @@ public class AuthService {
     private final UserRepository userRepository;
     private final AuthenticationManager authenticationManager;
 
+    @Auditable(resourceType = "AUTH", actionType = ActionType.LOGIN)    
     public AuthResponseDto login(AuthRequestDto requestDto) {
         authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(
@@ -31,6 +36,8 @@ public class AuthService {
         User user = userRepository.findByUsername(requestDto.username())
                 .orElseThrow(() -> new UsernameNotFoundException("User not found: " + requestDto.username()));
 
+        AuditAspect.loginUserHolder.set(user);
+                
         SecurityUser securityUser = new SecurityUser(user);
         String accessToken = jwtService.generateAccessToken(securityUser);
         String refreshToken = jwtService.generateRefreshToken(securityUser);
@@ -38,6 +45,7 @@ public class AuthService {
         return new AuthResponseDto(accessToken, refreshToken, jwtService.getJwtExpiration());
     }
 
+    @Auditable(resourceType = "AUTH", actionType = ActionType.LOGIN)
     public AuthResponseDto refreshToken(RefreshTokenRequestDto requestDto) {
         String username = jwtService.extractUsername(requestDto.refreshToken());
         User user = userRepository.findByUsername(username)
