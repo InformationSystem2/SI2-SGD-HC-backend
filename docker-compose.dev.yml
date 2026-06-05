@@ -4,8 +4,6 @@ services:
   postgres:
     image: postgres:18-alpine
     container_name: sgd-hc-postgres
-    env_file:
-      - ./SI2-SGD-HC-backend/.env
     environment:
       POSTGRES_DB: ${DB_NAME:-sgd_hc}
       POSTGRES_USER: ${DB_USERNAME:-superuser}
@@ -27,8 +25,6 @@ services:
   postgres-audit:
     image: postgres:18-alpine
     container_name: sgd-hc-postgres-audit
-    env_file:
-      - ./SI2-SGD-HC-backend/.env
     environment:
       POSTGRES_DB: ${DB_NAME_AUDIT:-sgd_hc_audit}
       POSTGRES_USER: ${DB_USERNAME_AUDIT:-superuser}
@@ -68,8 +64,6 @@ services:
       context: ./SI2-SGD-HC-backend
       dockerfile: Dockerfile.dev
     container_name: sgd-hc-backend
-    env_file:
-      - ./SI2-SGD-HC-backend/.env
     environment:
       # Use internal postgres container
       DB_URL: jdbc:postgresql://postgres:5432/${DB_NAME:-sgd_hc}
@@ -83,6 +77,12 @@ services:
       AUDIT_INTEGRITY_KEY: ${AUDIT_INTEGRITY_KEY:-SZE2vlhEUJVF8svvD4hG0xigvh1MML2WRGB2z7bimkZvsPqpPWkNzJk2oZXTKfkp}
       SPRING_PROFILES_ACTIVE: dev
       REDIS_URL: redis://valkey:6379
+      PORT: ${PORT:-8080}
+      APP_CORS_ALLOWED_ORIGINS: ${APP_CORS_ALLOWED_ORIGINS:-http://localhost:4200}
+      JWT_SECRET: ${JWT_SECRET:-thatqIsMykeyregrdesawww233eggtwasoddgkjjhhtdhttebd54ndsiuuhhhshs8877465sbbdd}
+      JWT_EXPIRATION: ${JWT_EXPIRATION:-86400000}
+      JWT_REFRESH_EXPIRATION: ${JWT_REFRESH_EXPIRATION:-604800000}
+      MY_JAVA_VERSION: ${MY_JAVA_VERSION:-26}
     ports:
       - "8081:8080"
     volumes:
@@ -108,13 +108,16 @@ services:
       dockerfile: Dockerfile
     container_name: sgd-hc-ai-service
     env_file:
-      - ./SI2-SGD-HC-ai-service/.env
+      - path: ./SI2-SGD-HC-ai-service/.env
+        required: false
     environment:
       DB_URL: jdbc:postgresql://postgres:5432/${DB_NAME:-sgd_hc}
       DB_NAME: ${DB_NAME:-sgd_hc}
       DB_USERNAME: ${DB_USERNAME:-superuser}
       DB_PASSWORD: ${DB_PASSWORD:-superuser}
       PORT: 8001
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      JWT_SECRET: ${JWT_SECRET:-thatqIsMykeyregtfrdesww233eggtwasoddgkjjhhtdhttebd54ndsiuuhhhshs8877465sbbdd}
     ports:
       - "8001:8001"
     volumes:
