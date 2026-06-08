@@ -37,6 +37,8 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.data.redis.core.RedisTemplate;
+import com.sgd_hc.config.mail.EmailService;
 
 import java.io.IOException;
 
@@ -47,7 +49,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
-
+import java.time.Duration;
+import java.util.Random;
 /**
  * Servicio central para la gestión de Tenants.
  * Incluye lógica de onboarding (público) y gestión administrativa (superadmin).
@@ -68,13 +71,13 @@ public class TenantService implements AuditableService<Object, Tenant> {
     private final ObjectMapper objectMapper;
 
     private final PasswordEncoder passwordEncoder;
-    private final org.springframework.data.redis.core.RedisTemplate<String, String> redisTemplate;
-    private final com.sgd_hc.config.mail.EmailService emailService;
+    private final RedisTemplate<String, String> redisTemplate;
+    private final EmailService emailService;
 
     @Value("${app.seed.system.slug}")
     private String systemSlug;
 
-    @Value("${spring.profiles.active:prod}")
+    @Value("${spring.profiles.active}")
     private String activeProfile;
 
     // ── PÚBLICO (Registro y Pago) ─────────────────────────────────
@@ -131,10 +134,10 @@ public class TenantService implements AuditableService<Object, Tenant> {
 
     public SendCodeResponseDto sendVerificationCode(SendCodeRequestDto dto) {
         String email = dto.getEmail();
-        String code = String.format("%06d", new java.util.Random().nextInt(999999));
+        String code = String.format("%06d", new Random().nextInt(999999));
         String redisKey = "verification_code:" + email;
 
-        redisTemplate.opsForValue().set(redisKey, code, java.time.Duration.ofMinutes(10));
+        redisTemplate.opsForValue().set(redisKey, code, Duration.ofMinutes(10));
 
         if ("dev".equalsIgnoreCase(activeProfile)) {
             log.info("Entorno dev: Código generado para {}: {}", email, code);
@@ -501,7 +504,6 @@ public class TenantService implements AuditableService<Object, Tenant> {
 
         revocationService.revokeAllTokensForTenant(id, Instant.now());
 
-        // IMPORTANT: Delete entities in correct order to avoid foreign key violations
         // Order: Documents -> Templates -> Patients -> Roles -> Users -> Tenant
         log.info("Hard delete: removing all related entities for tenant {}", tenant.getSlug());
 

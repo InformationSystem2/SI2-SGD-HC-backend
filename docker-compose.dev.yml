@@ -151,6 +151,36 @@ services:
     command: npm run start:docker -- --host 0.0.0.0 --poll 2000
     restart: unless-stopped
 
+  # Backup Service — Ejecuta pg_dump completo y por tenant cada noche (02:00 AM)
+  backup:
+    image: postgres:18-alpine
+    container_name: sgd-hc-backup
+    environment:
+      DB_HOST: postgres
+      DB_NAME: ${DB_NAME:-sgd_hc}
+      DB_USERNAME: ${DB_USERNAME:-superuser}
+      DB_PASSWORD: ${DB_PASSWORD:-superuser}
+      RUNNING_IN_DOCKER: "true"
+      AZURE_STORAGE_SAS_URL: ${AZURE_STORAGE_SAS_URL:-}
+    volumes:
+      - ./scripts/backup:/scripts/backup:ro
+      - ./backups:/backups
+    networks:
+      - sgd-hc-net
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: >
+      sh -c "
+        apk update && apk add --no-cache bash curl &&
+        mkdir -p /var/spool/cron/crontabs /backups/logs &&
+        echo '0 2 * * * /bin/bash /scripts/backup/linux/backup.sh >> /backups/logs/cron.log 2>&1' > /var/spool/cron/crontabs/root &&
+        chmod 600 /var/spool/cron/crontabs/root &&
+        echo 'Servicio backup iniciado. Próxima ejecución: 02:00 AM diaria.' &&
+        crond -f -l 8
+      "
+    restart: unless-stopped
+
 networks:
   sgd-hc-net:
     driver: bridge

@@ -15,6 +15,15 @@ import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Value;
+import com.sgd_hc.tenants.dto.SendCodeResponseDto;
+import com.sgd_hc.security.dto.ForgotPasswordRequestDto;
+import com.sgd_hc.security.config.tenant.TenantContext;
+import com.sgd_hc.security.dto.VerifyRecoveryCodeRequestDto;
+
+import java.time.Duration;
+import java.util.Random;
+import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
@@ -27,7 +36,7 @@ public class AuthService {
     private final org.springframework.data.redis.core.RedisTemplate<String, String> redisTemplate;
     private final com.sgd_hc.config.mail.EmailService emailService;
 
-    @org.springframework.beans.factory.annotation.Value("${spring.profiles.active:prod}")
+    @Value("${spring.profiles.active}")
     private String activeProfile;
 
     @Auditable(resourceType = "AUTH", actionType = ActionType.LOGIN)    
@@ -68,38 +77,38 @@ public class AuthService {
         return new AuthResponseDto(newAccessToken, newRefreshToken, jwtService.getJwtExpiration());
     }
 
-    public com.sgd_hc.tenants.dto.SendCodeResponseDto sendPasswordRecoveryCode(com.sgd_hc.security.dto.ForgotPasswordRequestDto request) {
+    public SendCodeResponseDto sendPasswordRecoveryCode(ForgotPasswordRequestDto request) {
         String email = request.email();
         User user;
         
-        com.sgd_hc.security.config.tenant.TenantContext.setBypassFilter(true);
+        TenantContext.setBypassFilter(true);
         try {
             user = userRepository.findByEmail(email).orElse(null);
         } finally {
-            com.sgd_hc.security.config.tenant.TenantContext.setBypassFilter(false);
+            TenantContext.setBypassFilter(false);
         }
         
         if (user == null) {
             // No revelamos si existe o no, pero para dev env returnamos igual
             if ("dev".equalsIgnoreCase(activeProfile)) {
-                return new com.sgd_hc.tenants.dto.SendCodeResponseDto("Usuario no encontrado (solo dev)", null);
+                return new SendCodeResponseDto("Usuario no encontrado (solo dev)", null);
             }
-            return new com.sgd_hc.tenants.dto.SendCodeResponseDto("Si el correo existe, se enviará un código", null);
+            return new SendCodeResponseDto("Si el correo existe, se enviará un código", null);
         }
 
-        String code = String.format("%06d", new java.util.Random().nextInt(999999));
+        String code = String.format("%06d", new Random().nextInt(999999));
         String redisKey = "recovery_code:" + email;
-        redisTemplate.opsForValue().set(redisKey, code, java.time.Duration.ofMinutes(10));
+        redisTemplate.opsForValue().set(redisKey, code, Duration.ofMinutes(10));
 
         if ("dev".equalsIgnoreCase(activeProfile)) {
-            return new com.sgd_hc.tenants.dto.SendCodeResponseDto("Código generado para pruebas", code);
+            return new SendCodeResponseDto("Código generado para pruebas", code);
         } else {
             emailService.sendVerificationCode(email, code);
-            return new com.sgd_hc.tenants.dto.SendCodeResponseDto("Si el correo existe, se enviará un código", null);
+            return new SendCodeResponseDto("Si el correo existe, se enviará un código", null);
         }
     }
 
-    public java.util.Map<String, String> resetPassword(com.sgd_hc.security.dto.VerifyRecoveryCodeRequestDto request) {
+    public Map<String, String> resetPassword(VerifyRecoveryCodeRequestDto request) {
         String email = request.email();
         String redisKey = "recovery_code:" + email;
         String savedCode = redisTemplate.opsForValue().get(redisKey);
@@ -109,18 +118,18 @@ public class AuthService {
         }
 
         User user;
-        com.sgd_hc.security.config.tenant.TenantContext.setBypassFilter(true);
+        TenantContext.setBypassFilter(true);
         try {
             user = userRepository.findByEmail(email)
                     .orElseThrow(() -> new IllegalArgumentException("Usuario no encontrado"));
             user.setPassword(passwordEncoder.encode(request.newPassword()));
             userRepository.save(user);
         } finally {
-            com.sgd_hc.security.config.tenant.TenantContext.setBypassFilter(false);
+            TenantContext.setBypassFilter(false);
         }
 
         redisTemplate.delete(redisKey);
 
-        return java.util.Map.of("message", "Contraseña actualizada exitosamente.");
+        return Map.of("message", "Contraseña actualizada exitosamente.");
     }
 }
