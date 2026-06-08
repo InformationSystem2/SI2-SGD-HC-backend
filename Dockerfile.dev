@@ -3,8 +3,8 @@ FROM eclipse-temurin:26-jdk-alpine
 
 WORKDIR /app
 
-# Instalar curl para health checks
-RUN apk add --no-cache curl
+# Instalar herramientas para health checks y backups
+RUN apk add --no-cache curl postgresql-client bash
 
 # Copy gradle files
 COPY gradle/ gradle/

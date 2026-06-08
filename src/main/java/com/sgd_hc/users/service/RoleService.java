@@ -3,8 +3,13 @@ package com.sgd_hc.users.service;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
+
+import com.sgd_hc.audit.annotation.Auditable;
+import com.sgd_hc.audit.entity.enums.ActionType;
+import com.sgd_hc.audit.service.AuditableService;
 
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.Authentication;
@@ -28,7 +33,7 @@ import lombok.RequiredArgsConstructor;
 
 @Service
 @RequiredArgsConstructor
-public class RoleService {
+public class RoleService implements AuditableService<Long, Role> {
 
     private final RoleRepository        roleRepository;
     private final PermissionRepository  permissionRepository;
@@ -36,6 +41,7 @@ public class RoleService {
     private final TenantResolverService tenantResolverService;
 
     @Transactional
+    @Auditable(resourceType = "ROLE", actionType = ActionType.CREATE)
     public RoleResponseDto createRole(RoleCreateDto dto) {
         Set<String> authorities = currentAuthorities();
         validateCreateAttributePermissions(dto, authorities);
@@ -61,6 +67,7 @@ public class RoleService {
     }
 
     @Transactional
+    @Auditable(resourceType = "ROLE", actionType = ActionType.UPDATE, idParamName = "id")
     public RoleResponseDto updateRole(Long id, RoleUpdateDto dto) {
         Set<String> authorities = currentAuthorities();
         validateUpdateAttributePermissions(dto, authorities);
@@ -79,6 +86,7 @@ public class RoleService {
     }
 
     @Transactional
+    @Auditable(resourceType = "ROLE", actionType = ActionType.DELETE, idParamName = "id")
     public void deleteRole(Long id) {
         Role role = findRoleOrThrow(id);
         role.setIsActive(false);
@@ -115,4 +123,13 @@ public class RoleService {
         if (dto.permissionsIds() != null) requireAuthority(authorities, "role:update:permissions");
     }
 
+    @Override
+    public Role getEntity(Long id) {
+        return findRoleOrThrow(id);
+    }
+
+    @Override
+    public Map<String, Object> toAuditMap(Role entity) {
+        return roleMapper.toAuditMap(entity);
+    }
 }

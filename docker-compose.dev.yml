@@ -4,8 +4,6 @@ services:
   postgres:
     image: postgres:18-alpine
     container_name: sgd-hc-postgres
-    env_file:
-      - ./SI2-SGD-HC-backend/.env
     environment:
       POSTGRES_DB: ${DB_NAME:-sgd_hc}
       POSTGRES_USER: ${DB_USERNAME:-superuser}
@@ -23,6 +21,42 @@ services:
       retries: 5
     restart: unless-stopped
 
+  # PostgreSQL Audit Database
+  postgres-audit:
+    image: postgres:18-alpine
+    container_name: sgd-hc-postgres-audit
+    environment:
+      POSTGRES_DB: ${DB_NAME_AUDIT:-sgd_hc_audit}
+      POSTGRES_USER: ${DB_USERNAME_AUDIT:-superuser}
+      POSTGRES_PASSWORD: ${DB_PASSWORD_AUDIT:-superuser}
+    volumes:
+      - postgres_audit_data:/var/lib/postgresql
+    ports:
+      - "5434:5432"
+    networks:
+      - sgd-hc-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME_AUDIT:-superuser} -d ${DB_NAME_AUDIT:-sgd_hc_audit}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # Valkey / Redis
+  valkey:
+    image: valkey/valkey:8-alpine
+    container_name: sgd-hc-valkey
+    ports:
+      - "6378:6379"
+    networks:
+      - sgd-hc-net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
   # Backend Service
   backend:
     image: sgd-hc-backend:dev
@@ -30,21 +64,64 @@ services:
       context: ./SI2-SGD-HC-backend
       dockerfile: Dockerfile.dev
     container_name: sgd-hc-backend
-    env_file:
-      - ./SI2-SGD-HC-backend/.env
     environment:
       # Use internal postgres container
       DB_URL: jdbc:postgresql://postgres:5432/${DB_NAME:-sgd_hc}
       DB_NAME: ${DB_NAME:-sgd_hc}
       DB_USERNAME: ${DB_USERNAME:-superuser}
       DB_PASSWORD: ${DB_PASSWORD:-superuser}
+      DB_URL_AUDIT: jdbc:postgresql://postgres-audit:5432/${DB_NAME_AUDIT:-sgd_hc_audit}
+      DB_USERNAME_AUDIT: ${DB_USERNAME_AUDIT:-superuser}
+      DB_PASSWORD_AUDIT: ${DB_PASSWORD_AUDIT:-superuser}
+      AUDIT_ENCRYPTION_KEY: ${AUDIT_ENCRYPTION_KEY:-Lk+JyPYKgx7Ooxz6kYCU1/A7pZOQb+iz0B4qc3qHHgg=}
+      AUDIT_INTEGRITY_KEY: ${AUDIT_INTEGRITY_KEY:-SZE2vlhEUJVF8svvD4hG0xigvh1MML2WRGB2z7bimkZvsPqpPWkNzJk2oZXTKfkp}
       SPRING_PROFILES_ACTIVE: dev
+      REDIS_URL: redis://valkey:6379
+      PORT: ${PORT:-8080}
+      APP_CORS_ALLOWED_ORIGINS: ${APP_CORS_ALLOWED_ORIGINS:-http://localhost:4200}
+      JWT_SECRET: ${JWT_SECRET:-thatqIsMykeyregrdesawww233eggtwasoddgkjjhhtdhttebd54ndsiuuhhhshs8877465sbbdd}
+      JWT_EXPIRATION: ${JWT_EXPIRATION:-86400000}
+      JWT_REFRESH_EXPIRATION: ${JWT_REFRESH_EXPIRATION:-604800000}
+      MY_JAVA_VERSION: ${MY_JAVA_VERSION:-26}
     ports:
       - "8081:8080"
     volumes:
       - ./SI2-SGD-HC-backend:/app
       - /app/build
       - gradle_cache:/root/.gradle
+    networks:
+      - sgd-hc-net
+    depends_on:
+      postgres:
+        condition: service_healthy
+      postgres-audit:
+        condition: service_healthy
+      valkey:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # AI Service (FastAPI)
+  ai-service:
+    image: sgd-hc-ai-service:dev
+    build:
+      context: ./SI2-SGD-HC-ai-service
+      dockerfile: Dockerfile
+    container_name: sgd-hc-ai-service
+    env_file:
+      - path: ./SI2-SGD-HC-ai-service/.env
+        required: false
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/${DB_NAME:-sgd_hc}
+      DB_NAME: ${DB_NAME:-sgd_hc}
+      DB_USERNAME: ${DB_USERNAME:-superuser}
+      DB_PASSWORD: ${DB_PASSWORD:-superuser}
+      PORT: 8001
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      JWT_SECRET: ${JWT_SECRET:-thatqIsMykeyregtfrdesww233eggtwasoddgkjjhhtdhttebd54ndsiuuhhhshs8877465sbbdd}
+    ports:
+      - "8001:8001"
+    volumes:
+      - ./SI2-SGD-HC-ai-service:/app
     networks:
       - sgd-hc-net
     depends_on:
@@ -74,12 +151,44 @@ services:
     command: npm run start:docker -- --host 0.0.0.0 --poll 2000
     restart: unless-stopped
 
+  # Backup Service — Ejecuta pg_dump completo y por tenant cada noche (02:00 AM)
+  backup:
+    image: postgres:18-alpine
+    container_name: sgd-hc-backup
+    environment:
+      DB_HOST: postgres
+      DB_NAME: ${DB_NAME:-sgd_hc}
+      DB_USERNAME: ${DB_USERNAME:-superuser}
+      DB_PASSWORD: ${DB_PASSWORD:-superuser}
+      RUNNING_IN_DOCKER: "true"
+      AZURE_STORAGE_SAS_URL: ${AZURE_STORAGE_SAS_URL:-}
+    volumes:
+      - ./scripts/backup:/scripts/backup:ro
+      - ./backups:/backups
+    networks:
+      - sgd-hc-net
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: >
+      sh -c "
+        apk update && apk add --no-cache bash curl &&
+        mkdir -p /var/spool/cron/crontabs /backups/logs &&
+        echo '0 2 * * * /bin/bash /scripts/backup/linux/backup.sh >> /backups/logs/cron.log 2>&1' > /var/spool/cron/crontabs/root &&
+        chmod 600 /var/spool/cron/crontabs/root &&
+        echo 'Servicio backup iniciado. Próxima ejecución: 02:00 AM diaria.' &&
+        crond -f -l 8
+      "
+    restart: unless-stopped
+
 networks:
   sgd-hc-net:
     driver: bridge
 
 volumes:
   postgres_data:
+    driver: local
+  postgres_audit_data:
     driver: local
   gradle_cache:
     driver: local

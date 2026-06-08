@@ -22,5 +22,6 @@ public record TenantRegisterRequestDto(
         @NotBlank String adminDocumentType,
         @NotBlank @Size(max = 15) String adminDocumentNumber,
         @NotBlank String adminGender,
-        String selectedPlan
+        String selectedPlan,
+        @NotBlank(message = "El código de verificación es obligatorio") String validationCode
 ) {}

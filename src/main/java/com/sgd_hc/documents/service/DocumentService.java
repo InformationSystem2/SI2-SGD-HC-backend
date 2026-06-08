@@ -1,5 +1,8 @@
 package com.sgd_hc.documents.service;
 
+import com.sgd_hc.audit.annotation.Auditable;
+import com.sgd_hc.audit.entity.enums.ActionType;
+import com.sgd_hc.audit.service.AuditableService;
 import com.sgd_hc.documents.dto.DocumentRequestDto;
 import com.sgd_hc.documents.dto.DocumentResponseDto;
 import com.sgd_hc.documents.dto.DocumentUpdateDto;
@@ -25,11 +28,7 @@ import org.springframework.core.io.Resource;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.MediaTypeFactory;
-import org.springframework.security.access.AccessDeniedException;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
-import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import com.sgd_hc.documents.dto.OcrResultDto;
@@ -41,16 +40,19 @@ import java.io.InputStream;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Set;
+import Map;
 import java.util.Objects;
 import java.util.UUID;
 import java.io.IOException;
 import java.time.LocalDateTime;
+import java.util.Map;
+import java.util.LinkedHashMap;
 
 
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class DocumentService {
+public class DocumentService implements AuditableService<UUID, Document> {
 
     private final DocumentRepository documentRepository;
     private final DocumentTemplateRepository documentTemplateRepository;
@@ -66,6 +68,7 @@ public class DocumentService {
     // ── Documento basado en plaantilla ────────────────────────────────────────
 
     @Transactional
+    @Auditable(resourceType = "DOCUMENT", actionType = ActionType.CREATE)    
     public DocumentResponseDto create(DocumentRequestDto dto) {
         Set<String> authorities = currentAuthorities();
         validateCreateAttributePermissions(dto, authorities);
@@ -89,6 +92,7 @@ public class DocumentService {
     // ── Documento externo (archivo subido) ───────────────────────────────────
 
     @Transactional
+    @Auditable(resourceType = "DOCUMENT", actionType = ActionType.CREATE)    
     public DocumentResponseDto createExternal(ExternalDocumentRequestDto dto) {
         Set<String> authorities = currentAuthorities();
         validateCreateExternalAttributePermissions(dto, authorities);
@@ -111,7 +115,7 @@ public class DocumentService {
 
         // Guardamos las notas como contenido clínico simple si las hay
         if (dto.notes() != null && !dto.notes().isBlank()) {
-            doc.setClinicalContent(java.util.Map.of("notas", dto.notes()));
+            doc.setClinicalContent(Map.of("notas", dto.notes()));
         }
 
         return documentMapper.toResponseDto(documentRepository.save(doc), authorities);
@@ -120,6 +124,7 @@ public class DocumentService {
     // ── Consultas ────────────────────────────────────────────────────────────
 
     @Transactional(readOnly = true)
+    @Auditable(resourceType = "DOCUMENT", actionType = ActionType.READ)
     public List<DocumentResponseDto> getAll() {
         Set<String> authorities = currentAuthorities();
         Tenant tenant = tenantResolverService.resolve();
@@ -130,6 +135,7 @@ public class DocumentService {
     }
 
     @Transactional(readOnly = true)
+    @Auditable(resourceType = "DOCUMENT", actionType = ActionType.READ)
     public List<DocumentResponseDto> getByPatient(UUID patientId) {
         Set<String> authorities = currentAuthorities();
         Tenant tenant = tenantResolverService.resolve();
@@ -141,11 +147,13 @@ public class DocumentService {
     }
 
     @Transactional(readOnly = true)
+    @Auditable(resourceType = "DOCUMENT", actionType = ActionType.READ, idParamName = "id")
     public DocumentResponseDto getById(UUID id) {
         return documentMapper.toResponseDto(findOrThrow(id), currentAuthorities());
     }
 
     @Transactional(readOnly = true)
+    @Auditable(resourceType = "DOCUMENT", actionType = ActionType.READ)
     public List<DocumentResponseDto> searchByClinicalField(String key, String value) {
         Set<String> authorities = currentAuthorities();
         Tenant tenant = tenantResolverService.resolve();
@@ -157,6 +165,7 @@ public class DocumentService {
     }
 
     @Transactional
+    @Auditable(resourceType = "DOCUMENT", actionType = ActionType.UPDATE, idParamName = "id")
     public DocumentResponseDto changeStatus(UUID id, DocumentStatus newStatus) {
         Set<String> authorities = currentAuthorities();
         requireAuthority(authorities, "document:update:status");
@@ -168,6 +177,7 @@ public class DocumentService {
     }
 
     @Transactional
+    @Auditable(resourceType = "DOCUMENT", actionType = ActionType.UPDATE, idParamName = "id")
     public DocumentResponseDto update(UUID id, DocumentUpdateDto dto) {
         Set<String> authorities = currentAuthorities();
         validateUpdateAttributePermissions(dto, authorities);
@@ -186,6 +196,7 @@ public class DocumentService {
     }
 
     @Transactional
+    @Auditable(resourceType = "DOCUMENT", actionType = ActionType.DELETE, idParamName = "id")
     public void delete(UUID id) {
         Document doc = findOrThrow(id);
         documentRepository.delete(doc);
@@ -243,6 +254,7 @@ public class DocumentService {
     // ── OCR ──────────────────────────────────────────────────────────────────
 
     @Transactional
+    @Auditable(resourceType = "DOCUMENT", actionType = ActionType.CREATE, idParamName = "documentId")
     public OcrResultDto processOcr(UUID documentId) {
         Document doc = findOrThrow(documentId);
 
@@ -282,6 +294,7 @@ public class DocumentService {
     }
 
     @Transactional(readOnly = true)
+    @Auditable(resourceType = "DOCUMENT_OCR", actionType = ActionType.READ, idParamName = "documentId")
     public OcrResultDto getOcrResult(UUID documentId) {
         findOrThrow(documentId); // verifica que el documento exista y sea del tenant
         DocumentOcrMetadata meta = ocrMetadataRepository
@@ -311,6 +324,7 @@ public class DocumentService {
      * @return Página de DTOs de documentos.
      */
     
+    @Auditable(resourceType = "DOCUMENT", actionType = ActionType.READ)
     public Page<DocumentResponseDto> searchHistoriales(
         String nombre,
         String nroDoc,
@@ -319,13 +333,39 @@ public class DocumentService {
         LocalDate fechaHasta,
         Pageable pageable) {
 
-    String estadoStr = estado != null ? estado.name() : null;
-    String fechaDesdeStr = fechaDesde != null ? fechaDesde.toString() : null;
-    String fechaHastaStr = fechaHasta != null ? fechaHasta.toString() : null;
+        String estadoStr = estado != null ? estado.name() : null;
+        String fechaDesdeStr = fechaDesde != null ? fechaDesde.toString() : null;
+        String fechaHastaStr = fechaHasta != null ? fechaHasta.toString() : null;
 
-    Page<Document> documentsPage = documentRepository.searchHistoriales(
-            nombre, nroDoc, estadoStr, fechaDesdeStr, fechaHastaStr, pageable);
+        Page<Document> documentsPage = documentRepository.searchHistoriales(
+                nombre, nroDoc, estadoStr, fechaDesdeStr, fechaHastaStr, pageable);
 
-    return documentsPage.map(documentMapper::toResponseDto);
-}
+        return documentsPage.map(documentMapper::toResponseDto);
+    }
+
+    @Override
+    public Document getEntity(UUID id) {
+        return findOrThrow(id);
+    }
+
+    @Override
+    public Map<String, Object> toAuditMap(Document entity) {
+        return documentMapper.toAuditMap(entity);
+    }
+
+    @Override
+    public Map<String, Object> toAuditMapFromResult(Object result) {
+        if (result instanceof OcrResultDto ocr) {
+            Map<String, Object> map = new LinkedHashMap<>();
+            map.put("rawText", ocr.rawText() != null ? "[TEXTO_EXTRAIDO]" : null);
+            map.put("datosEstructurados", ocr.structuredData());
+            map.put("confidenceScore", ocr.confidenceScore());
+            map.put("pagesProcessed", ocr.pagesProcessed());
+            map.put("fileType", ocr.fileType());
+            return map;
+        }
+        // Return empty map for DocumentResponseDto to force full entity reload
+        return Map.of();
+    }
+
 }

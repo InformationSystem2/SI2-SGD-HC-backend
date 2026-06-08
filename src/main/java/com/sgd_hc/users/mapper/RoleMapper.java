@@ -1,6 +1,8 @@
 package com.sgd_hc.users.mapper;
 
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -58,4 +60,19 @@ public class RoleMapper {
                 .permissionsIds(userAuthorities.contains("role:read:permissions") ? permissionIds : null)
                 .build();
     }
+
+    public Map<String, Object> toAuditMap(Role entity) {
+        Map<String, Object> map = new HashMap<>();
+        map.put("id", entity.getId());
+        map.put("name", entity.getName());
+        map.put("description", entity.getDescription());
+        map.put("isActive", entity.getIsActive());
+        if (entity.getPermissions() != null) {
+            map.put("permissions", entity.getPermissions().stream().map(Permission::getName).collect(Collectors.toSet()));
+        }
+        map.put("tenantId", entity.getTenant() != null ? entity.getTenant().getId().toString() : null);
+        map.put("createdAt", entity.getCreatedAt() != null ? entity.getCreatedAt().toString() : null);
+        map.put("updatedAt", entity.getUpdatedAt() != null ? entity.getUpdatedAt().toString() : null);
+        return map;
+    }    
 }

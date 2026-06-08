@@ -6,6 +6,8 @@ import com.sgd_hc.dicom.entity.DicomInstance;
 import com.sgd_hc.dicom.entity.DicomSeries;
 import com.sgd_hc.dicom.entity.DicomStudy;
 import com.sgd_hc.dicom.entity.Modality;
+import com.sgd_hc.audit.annotation.Auditable;
+import com.sgd_hc.audit.entity.enums.ActionType;
 import com.sgd_hc.dicom.mapper.DicomMapper;
 import com.sgd_hc.dicom.repository.DicomInstanceRepository;
 import com.sgd_hc.dicom.repository.DicomSeriesRepository;
@@ -35,10 +37,12 @@ import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.*;
 
+import com.sgd_hc.audit.service.AuditableService;
+
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class DicomParserService {
+public class DicomParserService implements AuditableService<UUID, DicomStudy> {
 
     private static final DateTimeFormatter DICOM_DATE = DateTimeFormatter.BASIC_ISO_DATE;
 
@@ -55,6 +59,7 @@ public class DicomParserService {
      * a partir de un único archivo .dcm.
      */
     @Transactional
+    @Auditable(resourceType = "DICOM_STUDY", actionType = ActionType.CREATE)
     public DicomStudy parseAndPersist(MultipartFile file, UUID patientId) throws IOException {
         if (file.isEmpty()) {
             throw new IllegalArgumentException("El archivo DICOM no puede estar vacío.");
@@ -99,6 +104,7 @@ public class DicomParserService {
      * <p>HTTP 200 incluso si todo se omitió — no es un error de cliente.
      */
     @Transactional
+    @Auditable(resourceType = "DICOM_STUDY_BATCH", actionType = ActionType.CREATE)
     public DicomUploadMultiResultDto parseAndPersistMulti(List<MultipartFile> files, UUID patientId) {
         if (files == null || files.isEmpty()) {
             throw new IllegalArgumentException("Debe enviarse al menos un archivo .dcm.");
@@ -298,6 +304,7 @@ public class DicomParserService {
     // —— Consultas públicas ———————————————————————————————————————————
 
     @Transactional(readOnly = true)
+    @Auditable(resourceType = "DICOM_STUDY", actionType = ActionType.READ, idParamName = "studyId")
     public DicomStudy getStudyWithTree(UUID studyId) {
         DicomStudy study = studyRepository.findByIdWithSeries(studyId)
                 .orElseThrow(() -> new NoSuchElementException(
@@ -307,6 +314,7 @@ public class DicomParserService {
     }
 
     @Transactional(readOnly = true)
+    @Auditable(resourceType = "DICOM_STUDY", actionType = ActionType.READ)
     public List<DicomStudy> listAllStudies() {
         List<DicomStudy> studies = studyRepository.findAllWithSeries();
         studies.forEach(seriesRepository::findByStudyWithInstances);
@@ -314,6 +322,7 @@ public class DicomParserService {
     }
 
     @Transactional(readOnly = true)
+    @Auditable(resourceType = "DICOM_STUDY", actionType = ActionType.READ)
     public List<DicomStudy> listStudiesByPatient(UUID patientId) {
         List<DicomStudy> studies = studyRepository.findByPatientIdOrderByCreatedAtDesc(patientId);
         studies.forEach(s -> seriesRepository.findByStudyWithInstances(s));
@@ -321,10 +330,31 @@ public class DicomParserService {
     }
 
     @Transactional(readOnly = true)
+    @Auditable(resourceType = "DICOM_INSTANCE", actionType = ActionType.READ, idParamName = "instanceId")
     public String getFilePath(UUID instanceId) {
         return instanceRepository.findById(instanceId)
                 .map(DicomInstance::getFilePath)
                 .orElseThrow(() -> new NoSuchElementException(
                         "Instancia DICOM no encontrada: " + instanceId));
+    }
+
+    @Override
+    public DicomStudy getEntity(UUID id) {
+        return studyRepository.findById(id).orElse(null);
+    }
+
+    @Override
+    public Map<String, Object> toAuditMap(DicomStudy entity) {
+        return dicomMapper.toAuditMap(entity);
+    }
+
+    @Override
+    public Map<String, Object> toAuditMapFromResult(Object result) {
+        if (result instanceof DicomStudy study) {
+            return dicomMapper.toAuditMap(study);
+        } else if (result instanceof DicomUploadMultiResultDto dto) {
+            return dicomMapper.toAuditMapFromMultiResult(dto);
+        }
+        return Map.of();
     }
 }

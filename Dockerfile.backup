@@ -1,0 +1,5 @@
+FROM postgres:18-alpine
+RUN apk update && apk add --no-cache bash curl
+COPY scripts/backup /scripts/backup
+RUN chmod -R +x /scripts/backup
+ENTRYPOINT ["/bin/bash", "/scripts/backup/linux/backup.sh"]

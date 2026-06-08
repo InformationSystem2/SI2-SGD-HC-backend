@@ -40,3 +40,7 @@ out/
 security-test.http
 https:/
 uploads/
+
+.keys/
+
+/backups/

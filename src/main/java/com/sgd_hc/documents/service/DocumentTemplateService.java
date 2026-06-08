@@ -1,5 +1,9 @@
 package com.sgd_hc.documents.service;
 
+import com.sgd_hc.audit.annotation.Auditable;
+import com.sgd_hc.audit.entity.enums.ActionType;
+import com.sgd_hc.audit.service.AuditableService;
+
 import com.sgd_hc.documents.dto.DocumentTemplateRequestDto;
 import com.sgd_hc.documents.dto.DocumentTemplateResponseDto;
 import com.sgd_hc.documents.entity.DocumentTemplate;
@@ -19,18 +23,20 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Set;
+import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
-public class DocumentTemplateService {
+public class DocumentTemplateService implements AuditableService<UUID, DocumentTemplate> {
 
     private final DocumentTemplateRepository documentTemplateRepository;
     private final DocumentTemplateMapper     documentTemplateMapper;
     private final TenantResolverService      tenantResolverService;
 
     @Transactional
+    @Auditable(resourceType = "DOCUMENT_TEMPLATE", actionType = ActionType.CREATE)
     public DocumentTemplateResponseDto create(DocumentTemplateRequestDto dto) {
         Set<String> authorities = currentAuthorities();
         validateCreateAttributePermissions(dto, authorities);
@@ -58,6 +64,7 @@ public class DocumentTemplateService {
     }
 
     @Transactional
+    @Auditable(resourceType = "DOCUMENT_TEMPLATE", actionType = ActionType.UPDATE, idParamName = "id")
     public DocumentTemplateResponseDto update(UUID id, DocumentTemplateRequestDto dto) {
         Set<String> authorities = currentAuthorities();
         validateUpdateAttributePermissions(dto, authorities);
@@ -68,6 +75,7 @@ public class DocumentTemplateService {
     }
 
     @Transactional
+    @Auditable(resourceType = "DOCUMENT_TEMPLATE", actionType = ActionType.DELETE, idParamName = "id")
     public void deactivate(UUID id) {
         DocumentTemplate template = findOrThrow(id);
         template.setIsActive(false);
@@ -92,4 +100,14 @@ public class DocumentTemplateService {
         if (dto.description() != null) requireAuthority(authorities, "template:update:description");
         if (dto.uiSchema() != null) requireAuthority(authorities, "template:update:ui_schema");
     }
+
+    @Override
+    public DocumentTemplate getEntity(UUID id) {
+        return findOrThrow(id);
+    }
+
+    @Override
+    public Map<String, Object> toAuditMap(DocumentTemplate entity) {
+        return documentTemplateMapper.toAuditMap(entity);
+    }    
 }

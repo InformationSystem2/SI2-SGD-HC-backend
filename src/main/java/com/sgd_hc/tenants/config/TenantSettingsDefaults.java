@@ -1,6 +1,7 @@
 package com.sgd_hc.tenants.config;
 
 import java.util.Map;
+import java.util.HashMap;
 
 public final class TenantSettingsDefaults {
 
@@ -43,11 +44,11 @@ public final class TenantSettingsDefaults {
     public static Map<String, Object> mergeWithDefaults(Map<String, Object> existing) {
         if (existing == null) return getAllDefaults();
 
-        Map<String, Object> result = new java.util.HashMap<>(getAllDefaults());
+        Map<String, Object> result = new HashMap<>(getAllDefaults());
 
         existing.forEach((key, value) -> {
             if (value instanceof Map) {
-                Map<String, Object> nested = new java.util.HashMap<>();
+                Map<String, Object> nested = new HashMap<>();
                 nested.putAll(result.get(key) != null ? (Map<String, Object>) result.get(key) : Map.of());
                 nested.putAll((Map<String, Object>) value);
                 result.put(key, nested);

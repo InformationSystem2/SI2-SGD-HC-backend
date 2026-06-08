@@ -8,6 +8,9 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.Assert;
 
 import java.util.Optional;
+import java.util.List;
+import java.util.Collections;
+import java.util.ArrayList;
 
 /**
  * Repositorio base personalizado para forzar el uso de JPQL en búsquedas por ID.
@@ -95,13 +98,13 @@ public class FilteredJpaRepositoryImpl<T, ID> extends SimpleJpaRepository<T, ID>
 
     @Override
     @Transactional(readOnly = true)
-    public java.util.List<T> findAllById(Iterable<ID> ids) {
+    public List<T> findAllById(Iterable<ID> ids) {
         Assert.notNull(ids, "The given Iterable of ids must not be null!");
         if (!ids.iterator().hasNext()) {
-            return java.util.Collections.emptyList();
+            return Collections.emptyList();
         }
         
-        java.util.List<ID> idList = new java.util.ArrayList<>();
+        List<ID> idList = new ArrayList<>();
         ids.forEach(idList::add);
 
         String jpql = String.format("SELECT e FROM %s e WHERE e.%s IN :ids",

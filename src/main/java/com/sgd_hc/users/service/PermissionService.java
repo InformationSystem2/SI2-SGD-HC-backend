@@ -1,6 +1,11 @@
 package com.sgd_hc.users.service;
 
+import com.sgd_hc.audit.annotation.Auditable;
+import com.sgd_hc.audit.entity.enums.ActionType;
+import com.sgd_hc.audit.service.AuditableService;
+
 import java.util.List;
+import java.util.Map;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -16,12 +21,13 @@ import lombok.RequiredArgsConstructor;
 
 @Service
 @RequiredArgsConstructor
-public class PermissionService {
+public class PermissionService implements AuditableService<Long, Permission> {
 
     private final PermissionRepository permissionRepository;
     private final PermissionMapper permissionMapper;
 
     @Transactional
+    @Auditable(resourceType = "PERMISSION", actionType = ActionType.CREATE)
     public PermissionResponseDto createPermission(PermissionCreateDto dto) {
         validateNameUniqueness(dto.name(), null);
         Permission permission = permissionMapper.toEntity(dto);
@@ -41,6 +47,7 @@ public class PermissionService {
     }
 
     @Transactional
+    @Auditable(resourceType = "PERMISSION", actionType = ActionType.UPDATE, idParamName = "id")
     public PermissionResponseDto updatePermission(Long id, PermissionUpdateDto dto) {
         Permission existingPermission = findPermissionOrThrow(id);
 
@@ -52,6 +59,7 @@ public class PermissionService {
     }
 
     @Transactional
+    @Auditable(resourceType = "PERMISSION", actionType = ActionType.UPDATE, idParamName = "id")
     public void deletePermission(Long id) {
         Permission permission = findPermissionOrThrow(id);
         permission.setIsActive(false);
@@ -68,5 +76,15 @@ public class PermissionService {
             if (id == null || !p.getId().equals(id))
                 throw new IllegalArgumentException("Permission name already exists: " + name);
         });
+    }
+
+    @Override
+    public Permission getEntity(Long id) {
+        return findPermissionOrThrow(id);
+    }
+
+    @Override
+    public Map<String, Object> toAuditMap(Permission entity) {
+        return permissionMapper.toAuditMap(entity);
     }
 }

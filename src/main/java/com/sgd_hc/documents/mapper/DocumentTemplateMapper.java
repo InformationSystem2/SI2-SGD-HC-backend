@@ -5,13 +5,15 @@ import com.sgd_hc.documents.dto.DocumentTemplateResponseDto;
 import com.sgd_hc.documents.entity.DocumentTemplate;
 import org.springframework.stereotype.Component;
 
+import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.Collectors;
+import java.util.Set;
 
 @Component
 public class DocumentTemplateMapper {
 
-    private static final java.util.Set<String> ALL_READ_AUTHORITIES = java.util.Set.of(
+    private static final Set<String> ALL_READ_AUTHORITIES = Set.of(
             "template:read:id",
             "template:read:name",
             "template:read:description",
@@ -37,7 +39,7 @@ public class DocumentTemplateMapper {
         return toResponseDto(template, ALL_READ_AUTHORITIES);
     }
 
-    public DocumentTemplateResponseDto toResponseDto(DocumentTemplate template, java.util.Set<String> userAuthorities) {
+    public DocumentTemplateResponseDto toResponseDto(DocumentTemplate template, Set<String> userAuthorities) {
         return new DocumentTemplateResponseDto(
                 userAuthorities.contains("template:read:id") ? template.getId() : null,
                 userAuthorities.contains("template:read:name") ? template.getName() : null,
@@ -47,5 +49,18 @@ public class DocumentTemplateMapper {
                           .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue))
                         : null
         );
+    }
+
+    public Map<String, Object> toAuditMap(DocumentTemplate entity) {
+        Map<String, Object> map = new HashMap<>();
+        map.put("id", entity.getId());
+        map.put("name", entity.getName());
+        map.put("description", entity.getDescription());
+        map.put("uiSchema", entity.getUiSchema());
+        map.put("isActive", entity.getIsActive());
+        map.put("tenantId", entity.getTenant() != null ? entity.getTenant().getId().toString() : null);
+        map.put("createdAt", entity.getCreatedAt() != null ? entity.getCreatedAt().toString() : null);
+        map.put("updatedAt", entity.getUpdatedAt() != null ? entity.getUpdatedAt().toString() : null);
+        return map;
     }
 }
