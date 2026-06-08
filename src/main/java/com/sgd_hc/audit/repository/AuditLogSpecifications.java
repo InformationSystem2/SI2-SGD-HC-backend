@@ -7,6 +7,7 @@ import org.springframework.data.jpa.domain.Specification;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 public class AuditLogSpecifications {
 
@@ -26,7 +27,7 @@ public class AuditLogSpecifications {
                 
                 // If it looks like a UUID, we can optionally match userId too. But for simplicity let's match string fields
                 try {
-                    java.util.UUID uuid = java.util.UUID.fromString(filter.userIdentifier());
+                    UUID uuid = UUID.fromString(filter.userIdentifier());
                     predicates.add(cb.or(matchUserName, matchUserEmail, cb.equal(root.get("userId"), uuid)));
                 } catch (IllegalArgumentException e) {
                     predicates.add(cb.or(matchUserName, matchUserEmail));

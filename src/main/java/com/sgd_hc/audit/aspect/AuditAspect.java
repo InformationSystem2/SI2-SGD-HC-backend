@@ -22,6 +22,8 @@ import org.springframework.stereotype.Component;
 
 import java.lang.reflect.Parameter;
 import java.util.Map;
+import java.time.OffsetDateTime;
+import java.util.UUID;
 
 @Slf4j
 @Aspect
@@ -140,6 +142,11 @@ public class AuditAspect {
                         entry.setIpAddress(request.getRemoteAddr());
                     }
 
+                    // Extract actual HTTP Method and Path
+                    entry.setRequestMethod(request.getMethod());
+                    String queryString = request.getQueryString();
+                    entry.setRequestPath(request.getRequestURI() + (queryString != null ? "?" + queryString : ""));
+
                     // User-Agent
                     String userAgent = request.getHeader("User-Agent");
                     if (userAgent != null && !userAgent.isBlank()) {
@@ -150,7 +157,7 @@ public class AuditAspect {
                     String clientTimeHeader = request.getHeader("X-Client-Time");
                     if (clientTimeHeader != null && !clientTimeHeader.isBlank()) {
                         try {
-                            entry.setClientTime(java.time.OffsetDateTime.parse(clientTimeHeader));
+                            entry.setClientTime(OffsetDateTime.parse(clientTimeHeader));
                         } catch (Exception ignored) {}
                     }
 
@@ -158,11 +165,11 @@ public class AuditAspect {
                     String sessionIdHeader = request.getHeader("X-Session-ID");
                     if (sessionIdHeader != null && !sessionIdHeader.isBlank()) {
                         try {
-                            entry.setSessionId(java.util.UUID.fromString(sessionIdHeader.trim()));
+                            entry.setSessionId(UUID.fromString(sessionIdHeader.trim()));
                         } catch (Exception ignored) {}
                     } else if (request.getSession(false) != null) {
                         try {
-                            entry.setSessionId(java.util.UUID.nameUUIDFromBytes(
+                            entry.setSessionId(UUID.nameUUIDFromBytes(
                                     request.getSession(false).getId().getBytes()));
                         } catch (Exception ignored) {}
                     }

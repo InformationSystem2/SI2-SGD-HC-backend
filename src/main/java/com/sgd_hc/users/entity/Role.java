@@ -4,6 +4,7 @@ import java.util.LinkedHashSet;
 import java.util.Set;
 import java.time.OffsetDateTime;
 
+import com.sgd_hc.tenants.entity.Tenant;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -32,7 +33,7 @@ public class Role {
             nullable = false,
             updatable = false
     )
-    private com.sgd_hc.tenants.entity.Tenant tenant;
+    private Tenant tenant;
 
     @Column(nullable = false)
     private String name;

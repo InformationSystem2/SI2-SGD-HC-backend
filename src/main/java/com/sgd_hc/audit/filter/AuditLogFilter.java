@@ -122,7 +122,8 @@ public class AuditLogFilter extends OncePerRequestFilter {
 
             AuditLog entry = new AuditLog();
             entry.setRequestMethod(request.getMethod());
-            entry.setRequestPath(request.getRequestURI());
+            String queryString = request.getQueryString();
+            entry.setRequestPath(request.getRequestURI() + (queryString != null ? "?" + queryString : ""));
             entry.setIpAddress(getClientIp(request));
             entry.setUserAgent(request.getHeader("User-Agent"));
             entry.setResponseStatus(statusCode);

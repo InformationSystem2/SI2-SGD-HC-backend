@@ -6,6 +6,7 @@ import com.sgd_hc.audit.aspect.AuditAspect;
 
 import com.sgd_hc.users.entity.User;
 import com.sgd_hc.users.repository.UserRepository;
+import com.sgd_hc.config.mail.EmailService;
 import com.sgd_hc.security.dto.AuthRequestDto;
 import com.sgd_hc.security.dto.AuthResponseDto;
 import com.sgd_hc.security.dto.RefreshTokenRequestDto;
@@ -34,7 +35,7 @@ public class AuthService {
     private final AuthenticationManager authenticationManager;
     private final org.springframework.security.crypto.password.PasswordEncoder passwordEncoder;
     private final org.springframework.data.redis.core.RedisTemplate<String, String> redisTemplate;
-    private final com.sgd_hc.config.mail.EmailService emailService;
+    private final EmailService emailService;
 
     @Value("${spring.profiles.active}")
     private String activeProfile;

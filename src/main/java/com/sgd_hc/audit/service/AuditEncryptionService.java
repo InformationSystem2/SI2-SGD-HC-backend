@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
+import com.sgd_hc.audit.util.AuditoriaUtils;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -83,7 +84,7 @@ public class AuditEncryptionService {
 
     public byte[] encryptMap(Map<String, Object> data) {
         if (data == null) return null;
-        return encrypt(toJson(com.sgd_hc.audit.util.AuditoriaUtils.sanitizeMap(data)));
+        return encrypt(toJson(AuditoriaUtils.sanitizeMap(data)));
     }
 
     public Map<String, Object> decryptMap(byte[] encrypted) {

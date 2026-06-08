@@ -47,6 +47,8 @@ public class PermissionMapper {
         map.put("action", entity.getAction());
         map.put("description", entity.getDescription());
         map.put("isActive", entity.getIsActive());
+        map.put("createdAt", entity.getCreatedAt() != null ? entity.getCreatedAt().toString() : null);
+        map.put("updatedAt", entity.getUpdatedAt() != null ? entity.getUpdatedAt().toString() : null);
         return map;
     }
 }
