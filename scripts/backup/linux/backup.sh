@@ -172,8 +172,50 @@ if [ -n "${AZURE_STORAGE_SAS_URL:-}" ]; then
     for f in ${FULL_BACKUP_FILE:-} "$BACKUP_DIR"/backup_tenant_*_${DATE}.sql; do
         [ -f "$f" ] || continue
         nombre_blob="$(basename "$f")"
-        curl -s -o /dev/null -w "%{http_code}" -X PUT -H "x-ms-blob-type: BlockBlob" --data-binary @"$f" "${base_url}/${nombre_blob}?${sas_token}"
+        
+        if [[ "$nombre_blob" == backup_completo_* ]]; then
+            UPLOAD_PATH="global/${DATE}/${nombre_blob}"
+        elif [[ "$nombre_blob" == backup_tenant_* ]]; then
+            slug=$(echo "$nombre_blob" | sed -E "s/backup_tenant_(.*)_${DATE}\.sql/\1/")
+            UPLOAD_PATH="tenants/${slug}/${DATE}/${nombre_blob}"
+        else
+            UPLOAD_PATH="otros/${DATE}/${nombre_blob}"
+        fi
+        
+        curl -s -o /dev/null -w "%{http_code}" -X PUT -H "x-ms-blob-type: BlockBlob" --data-binary @"$f" "${base_url}/${UPLOAD_PATH}?${sas_token}"
     done
+fi
+
+if [ -n "${GCS_BUCKET_NAME:-}" ]; then
+    log "--- GCLOUD: Subiendo backups a GCS ---"
+    
+    # Obtener Token de Acceso desde el Metadata Server de GCloud
+    GCP_TOKEN=$(curl -s -f -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token" | grep -o '"access_token":"[^"]*"' | awk -F'"' '{print $4}' || true)
+    
+    if [ -z "$GCP_TOKEN" ]; then
+        log "ERROR: No se pudo obtener el token de GCloud. ¿Está el contenedor ejecutándose en GCP con una Service Account válida?"
+    else
+        for f in ${FULL_BACKUP_FILE:-} "$BACKUP_DIR"/backup_tenant_*_${DATE}.sql; do
+            [ -f "$f" ] || continue
+            nombre_blob="$(basename "$f")"
+            
+            if [[ "$nombre_blob" == backup_completo_* ]]; then
+                UPLOAD_PATH="global/${DATE}/${nombre_blob}"
+            elif [[ "$nombre_blob" == backup_tenant_* ]]; then
+                slug=$(echo "$nombre_blob" | sed -E "s/backup_tenant_(.*)_${DATE}\.sql/\1/")
+                UPLOAD_PATH="tenants/${slug}/${DATE}/${nombre_blob}"
+            else
+                UPLOAD_PATH="otros/${DATE}/${nombre_blob}"
+            fi
+            
+            HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" -X POST --data-binary @"$f" \
+                -H "Authorization: Bearer $GCP_TOKEN" \
+                -H "Content-Type: application/octet-stream" \
+                "https://storage.googleapis.com/upload/storage/v1/b/${GCS_BUCKET_NAME}/o?uploadType=media&name=${UPLOAD_PATH}")
+                
+            log "  ✓ Subida GCS $nombre_blob: HTTP $HTTP_CODE"
+        done
+    fi
 fi
 
 log "Backup finalizado"

@@ -1,3 +1,20 @@
+# Scripts shell: forzar LF para compatibilidad con Docker/Linux
+*.sh text eol=lf
 /gradlew text eol=lf
+
+# Archivos de configuración de Docker y despliegue: forzar LF
+Dockerfile* text eol=lf
+.dockerignore text eol=lf
+cloudbuild.yaml text eol=lf
+
+# Archivos de propiedades y yaml
+*.yml text eol=lf
+*.yaml text eol=lf
+*.properties text eol=lf
+.env* text eol=lf
+
+# Scripts Windows
 *.bat text eol=crlf
+
+# Archivos binarios
 *.jar binary

@@ -15,6 +15,7 @@ services:
       DB_PASSWORD: ${DB_PASSWORD:-superuser}
       RUNNING_IN_DOCKER: "true"
       AZURE_STORAGE_SAS_URL: ${AZURE_STORAGE_SAS_URL:-}
+      GCS_BUCKET_NAME: ${GCS_BUCKET_NAME:-}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
