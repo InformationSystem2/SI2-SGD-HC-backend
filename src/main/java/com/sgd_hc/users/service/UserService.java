@@ -171,12 +171,4 @@ public class UserService implements AuditableService<UUID, User> {
     public Map<String, Object> toAuditMap(User entity) {
         return userMapper.toAuditMap(entity);
     }
-
-    @Override
-    public Map<String, Object> toAuditMapFromResult(Object result) {
-        if (result instanceof UserResponseDto dto) {
-            return userMapper.toAuditMapFromDto(dto);
-        }
-        return Map.of();
-    }    
 }

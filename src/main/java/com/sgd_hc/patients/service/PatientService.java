@@ -112,13 +112,4 @@ public class PatientService implements AuditableService<UUID, Patient> {
     public Map<String, Object> toAuditMap(Patient entity) {
         return patientMapper.toAuditMap(entity);
     }
-
-    @Override
-    public Map<String, Object> toAuditMapFromResult(Object result) {
-        if (result instanceof PatientResponseDto dto) {
-            return patientMapper.toAuditMapFromDto(dto);
-        }
-        return Map.of();
-    }    
-
 }

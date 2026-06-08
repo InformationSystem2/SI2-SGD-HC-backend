@@ -6,6 +6,7 @@ import com.sgd_hc.audit.service.AuditableService;
 
 import com.sgd_hc.tenants.dto.*;
 import com.sgd_hc.tenants.entity.*;
+import com.sgd_hc.tenants.mapper.TenantMapper;
 import com.sgd_hc.tenants.repository.TenantRepository;
 import com.sgd_hc.tenants.utils.TagSlugGenerator;
 import com.sgd_hc.users.entity.Role;
@@ -69,6 +70,7 @@ public class TenantService implements AuditableService<Object, Tenant> {
     private final TenantSessionService sessionService;
     private final TenantRevocationService revocationService;
     private final ObjectMapper objectMapper;
+    private final TenantMapper tenantMapper;
 
     private final PasswordEncoder passwordEncoder;
     private final RedisTemplate<String, String> redisTemplate;
@@ -99,16 +101,9 @@ public class TenantService implements AuditableService<Object, Tenant> {
 
         var sessionData = sessionOpt.get();
 
-        TenantSessionService.RegistrationData regData = new TenantSessionService.RegistrationData(
-                dto.tenantName(),
-                dto.adminFirstName(),
-                dto.adminLastName(),
-                dto.adminEmail(),
-                dto.adminPassword(),
-                dto.adminPhone(),
-                dto.adminDocumentType(),
-                dto.adminDocumentNumber(),
-                dto.adminGender()
+        TenantRegistrationDataDto regData = tenantMapper.toRegistrationData(
+                dto,
+                passwordEncoder.encode(dto.adminPassword())
         );
 
         sessionService.saveRegistrationData(dto.sessionToken(), regData);
@@ -193,19 +188,11 @@ public class TenantService implements AuditableService<Object, Tenant> {
         return slug;
     }
 
-    private Tenant createTenantWithAdmin(TenantSessionService.RegistrationData regData, String plan) {
+    private Tenant createTenantWithAdmin(TenantRegistrationDataDto regData, String plan) {
         String finalSlug = generateUniqueSlug(regData.getTenantName());
 
-        Tenant tenant = Tenant.builder()
-                .name(regData.getTenantName())
-                .slug(finalSlug)
-                .email(regData.getAdminEmail())
-                .phone(regData.getAdminPhone())
-                .subscriptionPlan(SubscriptionPlan.valueOf(plan.toUpperCase()))
-                .subscriptionStatus(SubscriptionStatus.ACTIVE)
-                .subscriptionStartDate(LocalDate.now())
-                .settings(buildDefaultSettings())
-                .build();
+        Tenant tenant = tenantMapper.toEntity(regData, finalSlug, SubscriptionPlan.valueOf(plan.toUpperCase()));
+        tenant.setSettings(buildDefaultSettings());
         tenant = tenantRepository.save(tenant);
 
         Tenant systemTenant = tenantRepository.findBySlug(systemSlug)
@@ -214,19 +201,7 @@ public class TenantService implements AuditableService<Object, Tenant> {
         Role adminRole = roleRepository.findByNameAndTenantId("ROLE_ADMIN", systemTenant.getId())
                 .orElseThrow(() -> new IllegalStateException("Rol global ADMIN no encontrado."));
 
-        User admin = User.builder()
-                .username("admin." + tenant.getSlug())
-                .email(regData.getAdminEmail())
-                .firstName(regData.getAdminFirstName())
-                .lastName(regData.getAdminLastName())
-                .password(passwordEncoder.encode(regData.getAdminPassword()))
-                .documentType(com.sgd_hc.users.entity.DocumentType.valueOf(regData.getAdminDocumentType().toUpperCase()))
-                .documentNumber(regData.getAdminDocumentNumber())
-                .gender(regData.getAdminGender())
-                .isActive(true)
-                .roles(new java.util.HashSet<>(Set.of(adminRole)))
-                .tenant(tenant)
-                .build();
+        User admin = tenantMapper.toAdminUserEntity(regData, adminRole, tenant);
         userRepository.save(admin);
 
         return tenant;
@@ -698,18 +673,8 @@ public class TenantService implements AuditableService<Object, Tenant> {
         return null;
     }
 
-    @Override //mover a mapper
+    @Override
     public Map<String, Object> toAuditMap(Tenant entity) {
-        Map<String, Object> map = new HashMap<>();
-        map.put("id", entity.getId());
-        map.put("name", entity.getName());
-        map.put("slug", entity.getSlug());
-        map.put("email", entity.getEmail());
-        map.put("phone", entity.getPhone());
-        map.put("address", entity.getAddress());
-        map.put("subscriptionPlan", entity.getSubscriptionPlan());
-        map.put("subscriptionStatus", entity.getSubscriptionStatus());
-        map.put("settings", entity.getSettings());
-        return map;
+        return tenantMapper.toAuditMap(entity);
     }
 }

@@ -12,14 +12,25 @@ import java.nio.file.StandardCopyOption;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Scanner;
+import com.sgd_hc.audit.annotation.Auditable;
+import com.sgd_hc.audit.entity.enums.ActionType;
+import com.sgd_hc.audit.service.AuditableService;
+import com.sgd_hc.backups.mapper.BackupMapper;
+import lombok.RequiredArgsConstructor;
+import java.util.Map;
 
 @Slf4j
 @Service
-public class BackupService {
+@RequiredArgsConstructor
+public class BackupService implements AuditableService<String, File> {
+
+    private final BackupMapper backupMapper;
 
     private final boolean isWindows = System.getProperty("os.name").toLowerCase().startsWith("windows");
     private final String BACKUP_DIR = "backups";
 
+    @Auditable(resourceType = "BACKUP_FULL", actionType = ActionType.CREATE)
     public File generateFullBackup() {
         log.info("Iniciando backup completo manual");
         List<String> command = isWindows 
@@ -31,6 +42,7 @@ public class BackupService {
         return getLatestFile(BACKUP_DIR, "backup_completo_");
     }
 
+    @Auditable(resourceType = "BACKUP_TENANT", actionType = ActionType.CREATE, idParamName = "tenantSlug")
     public File generateTenantBackup(String tenantSlug) {
         log.info("Iniciando backup manual para el tenant: {}", tenantSlug);
         List<String> command = isWindows
@@ -42,6 +54,7 @@ public class BackupService {
         return getLatestFile(BACKUP_DIR, "backup_tenant_" + tenantSlug);
     }
 
+    @Auditable(resourceType = "BACKUP_RESTORE_FULL", actionType = ActionType.UPDATE)
     public void restoreFullBackup(MultipartFile file) throws IOException {
         log.info("Iniciando restauración completa manual");
         File tempFile = saveTempFile(file, ".dump");
@@ -55,6 +68,7 @@ public class BackupService {
         }
     }
 
+    @Auditable(resourceType = "BACKUP_RESTORE_TENANT", actionType = ActionType.UPDATE)
     public void restoreTenantBackup(MultipartFile file) throws IOException {
         log.info("Iniciando restauración manual de tenant");
         File tempFile = saveTempFile(file, ".sql");
@@ -75,7 +89,7 @@ public class BackupService {
             Process process = pb.start();
 
             String output;
-            try (java.util.Scanner s = new java.util.Scanner(process.getInputStream()).useDelimiter("\\A")) {
+            try (Scanner s = new Scanner(process.getInputStream()).useDelimiter("\\A")) {
                 output = s.hasNext() ? s.next() : "";
             }
 
@@ -113,5 +127,23 @@ public class BackupService {
         Path tempPath = Files.createTempFile("restore_", extension);
         Files.copy(file.getInputStream(), tempPath, StandardCopyOption.REPLACE_EXISTING);
         return tempPath.toFile();
+    }
+
+    @Override
+    public File getEntity(String id) {
+        return null;
+    }
+
+    @Override
+    public Map<String, Object> toAuditMap(File entity) {
+        return backupMapper.toAuditMap(entity);
+    }
+
+    @Override
+    public Map<String, Object> toAuditMapFromResult(Object result) {
+        if (result instanceof File file) {
+            return toAuditMap(file);
+        }
+        return Map.of();
     }
 }

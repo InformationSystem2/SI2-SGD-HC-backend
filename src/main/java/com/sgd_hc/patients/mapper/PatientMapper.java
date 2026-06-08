@@ -83,6 +83,9 @@ public class PatientMapper {
         map.put("address", entity.getAddress());
         map.put("gender", entity.getGender() != null ? entity.getGender().name() : null);
         map.put("birthDate", entity.getBirthDate() != null ? entity.getBirthDate().toString() : null);
+        map.put("tenantId", entity.getTenant() != null ? entity.getTenant().getId().toString() : null);
+        map.put("createdAt", entity.getCreatedAt() != null ? entity.getCreatedAt().toString() : null);
+        map.put("updatedAt", entity.getUpdatedAt() != null ? entity.getUpdatedAt().toString() : null);
         return map;
     }
 

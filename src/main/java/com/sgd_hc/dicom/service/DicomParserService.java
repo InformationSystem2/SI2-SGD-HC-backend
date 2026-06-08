@@ -37,10 +37,12 @@ import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.*;
 
+import com.sgd_hc.audit.service.AuditableService;
+
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class DicomParserService {
+public class DicomParserService implements AuditableService<UUID, DicomStudy> {
 
     private static final DateTimeFormatter DICOM_DATE = DateTimeFormatter.BASIC_ISO_DATE;
 
@@ -57,6 +59,7 @@ public class DicomParserService {
      * a partir de un único archivo .dcm.
      */
     @Transactional
+    @Auditable(resourceType = "DICOM_STUDY", actionType = ActionType.CREATE)
     public DicomStudy parseAndPersist(MultipartFile file, UUID patientId) throws IOException {
         if (file.isEmpty()) {
             throw new IllegalArgumentException("El archivo DICOM no puede estar vacío.");
@@ -101,6 +104,7 @@ public class DicomParserService {
      * <p>HTTP 200 incluso si todo se omitió — no es un error de cliente.
      */
     @Transactional
+    @Auditable(resourceType = "DICOM_STUDY_BATCH", actionType = ActionType.CREATE)
     public DicomUploadMultiResultDto parseAndPersistMulti(List<MultipartFile> files, UUID patientId) {
         if (files == null || files.isEmpty()) {
             throw new IllegalArgumentException("Debe enviarse al menos un archivo .dcm.");
@@ -332,5 +336,25 @@ public class DicomParserService {
                 .map(DicomInstance::getFilePath)
                 .orElseThrow(() -> new NoSuchElementException(
                         "Instancia DICOM no encontrada: " + instanceId));
+    }
+
+    @Override
+    public DicomStudy getEntity(UUID id) {
+        return studyRepository.findById(id).orElse(null);
+    }
+
+    @Override
+    public Map<String, Object> toAuditMap(DicomStudy entity) {
+        return dicomMapper.toAuditMap(entity);
+    }
+
+    @Override
+    public Map<String, Object> toAuditMapFromResult(Object result) {
+        if (result instanceof DicomStudy study) {
+            return dicomMapper.toAuditMap(study);
+        } else if (result instanceof DicomUploadMultiResultDto dto) {
+            return dicomMapper.toAuditMapFromMultiResult(dto);
+        }
+        return Map.of();
     }
 }

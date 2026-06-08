@@ -70,6 +70,9 @@ public class RoleMapper {
         if (entity.getPermissions() != null) {
             map.put("permissions", entity.getPermissions().stream().map(Permission::getName).collect(Collectors.toSet()));
         }
+        map.put("tenantId", entity.getTenant() != null ? entity.getTenant().getId().toString() : null);
+        map.put("createdAt", entity.getCreatedAt() != null ? entity.getCreatedAt().toString() : null);
+        map.put("updatedAt", entity.getUpdatedAt() != null ? entity.getUpdatedAt().toString() : null);
         return map;
     }    
 }

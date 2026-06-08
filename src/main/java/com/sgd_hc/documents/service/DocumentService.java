@@ -28,11 +28,7 @@ import org.springframework.core.io.Resource;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.MediaTypeFactory;
-import org.springframework.security.access.AccessDeniedException;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
-import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import com.sgd_hc.documents.dto.OcrResultDto;
@@ -44,11 +40,13 @@ import java.io.InputStream;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Set;
-import java.util.Map;
+import Map;
 import java.util.Objects;
 import java.util.UUID;
 import java.io.IOException;
 import java.time.LocalDateTime;
+import java.util.Map;
+import java.util.LinkedHashMap;
 
 
 @Slf4j
@@ -117,7 +115,7 @@ public class DocumentService implements AuditableService<UUID, Document> {
 
         // Guardamos las notas como contenido clínico simple si las hay
         if (dto.notes() != null && !dto.notes().isBlank()) {
-            doc.setClinicalContent(java.util.Map.of("notas", dto.notes()));
+            doc.setClinicalContent(Map.of("notas", dto.notes()));
         }
 
         return documentMapper.toResponseDto(documentRepository.save(doc), authorities);
@@ -357,9 +355,16 @@ public class DocumentService implements AuditableService<UUID, Document> {
 
     @Override
     public Map<String, Object> toAuditMapFromResult(Object result) {
-        if (result instanceof DocumentResponseDto dto) {
-            return documentMapper.toAuditMapFromDto(dto);
+        if (result instanceof OcrResultDto ocr) {
+            Map<String, Object> map = new LinkedHashMap<>();
+            map.put("rawText", ocr.rawText() != null ? "[TEXTO_EXTRAIDO]" : null);
+            map.put("datosEstructurados", ocr.structuredData());
+            map.put("confidenceScore", ocr.confidenceScore());
+            map.put("pagesProcessed", ocr.pagesProcessed());
+            map.put("fileType", ocr.fileType());
+            return map;
         }
+        // Return empty map for DocumentResponseDto to force full entity reload
         return Map.of();
     }
 

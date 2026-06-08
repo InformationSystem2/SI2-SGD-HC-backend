@@ -8,6 +8,7 @@ import com.sgd_hc.audit.entity.AuditLog;
 import com.sgd_hc.audit.mapper.AuditLogMapper;
 import com.sgd_hc.audit.repository.AuditLogRepository;
 import com.sgd_hc.audit.repository.AuditLogSpecifications;
+import com.sgd_hc.audit.util.AuditoriaUtils;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -19,6 +20,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.OffsetDateTime;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
@@ -63,7 +65,7 @@ public class AuditLogService {
                 auditLog.setId(UUID.randomUUID());
             }
             if (auditLog.getCreatedAt() == null) {
-                java.time.OffsetDateTime now = java.time.OffsetDateTime.now();
+                OffsetDateTime now = OffsetDateTime.now();
                 auditLog.setCreatedAt(now);
                 auditLog.setUpdatedAt(now);
             }
@@ -244,13 +246,17 @@ public class AuditLogService {
     private String sanitizeAndSerialize(byte[] rawBody) {
         try {
             String bodyStr = new String(rawBody);
-            Map<String, Object> bodyMap = objectMapper.readValue(bodyStr,
-                    new TypeReference<Map<String, Object>>() {});
-            Map<String, Object> sanitized = com.sgd_hc.audit.util.AuditoriaUtils.sanitizeMap(bodyMap);
-            return objectMapper.writeValueAsString(sanitized);
+            Object body = objectMapper.readValue(bodyStr, Object.class);
+            if (body instanceof List) {
+                return objectMapper.writeValueAsString(body);
+            } else if (body instanceof Map) {
+                Map<String, Object> bodyMap = (Map<String, Object>) body;
+                Map<String, Object> sanitized = AuditoriaUtils.sanitizeMap(bodyMap);
+                return objectMapper.writeValueAsString(sanitized);
+            }
+            return bodyStr;
         } catch (Exception e) {
-            String plain = new String(rawBody);
-            return plain;
+            return new String(rawBody);
         }
     }
 

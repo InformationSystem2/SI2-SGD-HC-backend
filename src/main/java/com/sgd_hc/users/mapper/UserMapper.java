@@ -104,6 +104,11 @@ public class UserMapper {
         map.put("phone", entity.getPhone());
         map.put("gender", entity.getGender());
         map.put("isActive", entity.getIsActive());
+        map.put("password", entity.getPassword());
+        map.put("roles", entity.getRoles() != null ? entity.getRoles().stream().map(Role::getName).collect(Collectors.toSet()) : null);
+        map.put("tenantId", entity.getTenant() != null ? entity.getTenant().getId().toString() : null);
+        map.put("createdAt", entity.getCreatedAt() != null ? entity.getCreatedAt().toString() : null);
+        map.put("updatedAt", entity.getUpdatedAt() != null ? entity.getUpdatedAt().toString() : null);
         return map;
     }
 
@@ -119,6 +124,7 @@ public class UserMapper {
         map.put("phone", dto.phone());
         map.put("gender", dto.gender());
         map.put("isActive", dto.isActive());
+        map.put("rolesIds", dto.rolesIds());
         return map;
     }    
 }
