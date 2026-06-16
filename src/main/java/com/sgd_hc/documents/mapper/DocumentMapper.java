@@ -28,7 +28,8 @@ public class DocumentMapper {
             "document:read:issue_date",
             "document:read:expiry_date",
             "document:read:file_url",
-            "document:read:is_external_source"
+            "document:read:is_external_source",
+            "document:read:version_number"
     );
 
     public Document toEntity(DocumentRequestDto dto, Patient patient, User uploader, DocumentTemplate template) {
@@ -71,7 +72,8 @@ public class DocumentMapper {
                 userAuthorities.contains("document:read:issue_date") ? doc.getIssueDate() : null,
                 userAuthorities.contains("document:read:expiry_date") ? doc.getExpiryDate() : null,
                 userAuthorities.contains("document:read:file_url") ? doc.getFileUrl() : null,
-                userAuthorities.contains("document:read:is_external_source") ? doc.getIsExternalSource() : null);
+                userAuthorities.contains("document:read:is_external_source") ? doc.getIsExternalSource() : null,
+                userAuthorities.contains("document:read:version_number") ? doc.getVersionNumber() : null);
     }
 
     public Map<String, Object> toAuditMap(Document entity) {
@@ -105,6 +107,7 @@ public class DocumentMapper {
         map.put("clinicalContent", dto.clinicalContent());
         map.put("fileUrl", dto.fileUrl());
         map.put("isExternalSource", dto.isExternalSource());
+        map.put("versionNumber", dto.versionNumber());
         return map;
     }
 }

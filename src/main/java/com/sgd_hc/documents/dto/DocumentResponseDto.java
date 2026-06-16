@@ -37,5 +37,6 @@ public record DocumentResponseDto(
         LocalDate issueDate,
         LocalDate expiryDate,
         String fileUrl,
-        Boolean isExternalSource) {
+        Boolean isExternalSource,
+        Integer versionNumber) {
 }
