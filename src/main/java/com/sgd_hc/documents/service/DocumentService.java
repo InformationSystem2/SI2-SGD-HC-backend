@@ -17,6 +17,7 @@ import com.sgd_hc.patients.entity.Patient;
 import com.sgd_hc.patients.repository.PatientRepository;
 import com.sgd_hc.security.details.SecurityUser;
 import com.sgd_hc.tenants.entity.Tenant;
+import com.sgd_hc.tenants.service.PlanLimitValidator;
 import com.sgd_hc.tenants.service.TenantResolverService;
 import com.sgd_hc.users.entity.User;
 import static com.sgd_hc.security.utils.SecurityUtils.*;
@@ -63,6 +64,7 @@ public class DocumentService implements AuditableService<UUID, Document> {
     private final OcrClientService          ocrClientService;
     private final DocumentOcrMetadataRepository ocrMetadataRepository;
     private final FileStorageService        fileStorageService;
+    private final PlanLimitValidator         planLimitValidator;
 
 
     // ── Documento basado en plaantilla ────────────────────────────────────────
@@ -74,6 +76,7 @@ public class DocumentService implements AuditableService<UUID, Document> {
         validateCreateAttributePermissions(dto, authorities);
 
         Tenant tenant = tenantResolverService.resolve();
+        planLimitValidator.checkDocumentsLimit(tenant.getId());
 
         Patient patient = patientRepository.findById(dto.patientId())
                 .orElseThrow(() -> new EntityNotFoundException(
@@ -98,6 +101,7 @@ public class DocumentService implements AuditableService<UUID, Document> {
         validateCreateExternalAttributePermissions(dto, authorities);
 
         Tenant tenant = tenantResolverService.resolve();
+        planLimitValidator.checkDocumentsLimit(tenant.getId());
 
         Patient patient = patientRepository.findById(dto.patientId())
                 .orElseThrow(() -> new EntityNotFoundException(
@@ -109,6 +113,8 @@ public class DocumentService implements AuditableService<UUID, Document> {
         doc.setUploader(currentUser());
         doc.setTemplate(null);
         doc.setFileUrl(dto.fileUrl());
+        doc.setFileSizeBytes(fileStorageService.getFileSize(
+                dto.fileUrl() != null ? dto.fileUrl().replaceFirst("^/uploads/", "") : ""));
         doc.setIssueDate(dto.issueDate());
         doc.setIsExternalSource(true);
         doc.setStatus(DocumentStatus.DRAFT);
@@ -257,6 +263,8 @@ public class DocumentService implements AuditableService<UUID, Document> {
     @Auditable(resourceType = "DOCUMENT", actionType = ActionType.CREATE, idParamName = "documentId")
     public OcrResultDto processOcr(UUID documentId) {
         Document doc = findOrThrow(documentId);
+
+        planLimitValidator.checkOcrPagesLimit(doc.getTenant().getId());
 
         if (doc.getFileUrl() == null || doc.getFileUrl().isBlank())
             throw new IllegalStateException("El documento no tiene archivo físico para procesar");

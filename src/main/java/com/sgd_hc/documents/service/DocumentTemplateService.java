@@ -10,6 +10,7 @@ import com.sgd_hc.documents.entity.DocumentTemplate;
 import com.sgd_hc.documents.mapper.DocumentTemplateMapper;
 import com.sgd_hc.documents.repository.DocumentTemplateRepository;
 import com.sgd_hc.tenants.entity.Tenant;
+import com.sgd_hc.tenants.service.PlanLimitValidator;
 import com.sgd_hc.tenants.service.TenantResolverService;
 import jakarta.persistence.EntityNotFoundException;
 import static com.sgd_hc.security.utils.SecurityUtils.*;
@@ -34,6 +35,7 @@ public class DocumentTemplateService implements AuditableService<UUID, DocumentT
     private final DocumentTemplateRepository documentTemplateRepository;
     private final DocumentTemplateMapper     documentTemplateMapper;
     private final TenantResolverService      tenantResolverService;
+    private final PlanLimitValidator         planLimitValidator;
 
     @Transactional
     @Auditable(resourceType = "DOCUMENT_TEMPLATE", actionType = ActionType.CREATE)
@@ -42,6 +44,8 @@ public class DocumentTemplateService implements AuditableService<UUID, DocumentT
         validateCreateAttributePermissions(dto, authorities);
 
         Tenant tenant = tenantResolverService.resolve();
+        planLimitValidator.checkDocumentTemplatesLimit(tenant.getId());
+
         DocumentTemplate template = documentTemplateMapper.toEntity(dto);
         template.setTenant(tenant);
         return documentTemplateMapper.toResponseDto(documentTemplateRepository.save(template), authorities);

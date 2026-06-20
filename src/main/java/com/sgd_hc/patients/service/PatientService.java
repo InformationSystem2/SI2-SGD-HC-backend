@@ -24,6 +24,8 @@ import com.sgd_hc.patients.dto.PatientUpdateDto;
 import com.sgd_hc.patients.entity.Patient;
 import com.sgd_hc.patients.mapper.PatientMapper;
 import com.sgd_hc.patients.repository.PatientRepository;
+import com.sgd_hc.tenants.entity.Tenant;
+import com.sgd_hc.tenants.service.PlanLimitValidator;
 import com.sgd_hc.tenants.service.TenantResolverService;
 
 import lombok.RequiredArgsConstructor;
@@ -35,6 +37,7 @@ public class PatientService implements AuditableService<UUID, Patient> {
     private final PatientRepository    patientRepository;
     private final PatientMapper        patientMapper;
     private final TenantResolverService tenantResolverService;
+    private final PlanLimitValidator   planLimitValidator;
 
     @Transactional
     @Auditable(resourceType = "PATIENT", actionType = ActionType.CREATE)
@@ -42,8 +45,11 @@ public class PatientService implements AuditableService<UUID, Patient> {
         Set<String> authorities = currentAuthorities();
         validateCreateAttributePermissions(dto, authorities);
 
+        Tenant tenant = tenantResolverService.resolve();
+        planLimitValidator.checkPatientsLimit(tenant.getId());
+
         Patient patient = patientMapper.toEntity(dto);
-        patient.setTenant(tenantResolverService.resolve());
+        patient.setTenant(tenant);
         return patientMapper.toResponseDto(patientRepository.save(patient), authorities);
     }
 

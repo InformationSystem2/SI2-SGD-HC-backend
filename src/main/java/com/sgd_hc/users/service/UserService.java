@@ -21,6 +21,8 @@ import static com.sgd_hc.security.utils.SecurityUtils.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.sgd_hc.tenants.entity.Tenant;
+import com.sgd_hc.tenants.service.PlanLimitValidator;
 import com.sgd_hc.tenants.service.TenantResolverService;
 import com.sgd_hc.users.dto.UserCreateDto;
 import com.sgd_hc.users.dto.UserResponseDto;
@@ -42,12 +44,16 @@ public class UserService implements AuditableService<UUID, User> {
     private final UserMapper            userMapper;
     private final PasswordEncoder       passwordEncoder;
     private final TenantResolverService tenantResolverService;
+    private final PlanLimitValidator    planLimitValidator;
 
     @Transactional
     @Auditable(resourceType = "USER", actionType = ActionType.CREATE)
     public UserResponseDto createUser(UserCreateDto dto) {
         Set<String> authorities = currentAuthorities();
         validateCreateAttributePermissions(dto, authorities);
+
+        Tenant tenant = tenantResolverService.resolve();
+        planLimitValidator.checkUsersLimit(tenant.getId());
 
         if (userRepository.existsByEmail(dto.email()))
             throw new IllegalArgumentException("Email already exists");
@@ -59,7 +65,7 @@ public class UserService implements AuditableService<UUID, User> {
         User user = userMapper.toEntity(dto, roles);
         user.setUsername(generateUsername());
         user.setPassword(passwordEncoder.encode(dto.password()));
-        user.setTenant(tenantResolverService.resolve());
+        user.setTenant(tenant);
 
         return userMapper.toResponseDto(userRepository.save(user), authorities);
     }

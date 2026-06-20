@@ -62,6 +62,21 @@ public class GlobalExceptionHandler {
                 "El recurso solicitado no existe o no pertenece a tu clínica.", request);
     }
 
+    @ExceptionHandler(PlanLimitExceededException.class)
+    public ResponseEntity<Object> handlePlanLimitExceeded(PlanLimitExceededException ex, WebRequest request) {
+        request.setAttribute("auditErrorMessage", ex.getMessage(), WebRequest.SCOPE_REQUEST);
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("timestamp", LocalDateTime.now());
+        body.put("status", HttpStatus.FORBIDDEN.value());
+        body.put("error", "Plan Limit Exceeded");
+        body.put("message", ex.getMessage());
+        body.put("resourceType", ex.getResourceType());
+        body.put("currentCount", ex.getCurrentCount());
+        body.put("maxLimit", ex.getMaxLimit());
+        body.put("path", request.getDescription(false).replace("uri=", ""));
+        return new ResponseEntity<>(body, HttpStatus.FORBIDDEN);
+    }
+
     @ExceptionHandler(TenantSuspendedException.class)
     public ResponseEntity<Object> handleTenantSuspendedException(TenantSuspendedException ex, WebRequest request) {
         request.setAttribute("auditErrorMessage", ex.getMessage(), WebRequest.SCOPE_REQUEST);
