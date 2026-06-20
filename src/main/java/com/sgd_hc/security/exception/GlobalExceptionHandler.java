@@ -1,5 +1,6 @@
 package com.sgd_hc.security.exception;
 
+import jakarta.persistence.EntityNotFoundException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
@@ -55,6 +56,11 @@ public class GlobalExceptionHandler {
         return errorBody(HttpStatus.BAD_REQUEST, "Invalid Parameter Type", message, request);
     }
 
+
+    @ExceptionHandler(EntityNotFoundException.class)
+    public ResponseEntity<Object> handleEntityNotFound(EntityNotFoundException ex, WebRequest request) {
+        return errorBody(HttpStatus.NOT_FOUND, "Not Found", ex.getMessage(), request);
+    }
 
     @ExceptionHandler(EmptyResultDataAccessException.class)
     public ResponseEntity<Object> handleEmptyResultDataAccessException(org.springframework.dao.EmptyResultDataAccessException ex, WebRequest request) {
