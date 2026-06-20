@@ -44,3 +44,6 @@ uploads/
 .keys/
 
 /backups/
+
+/wrapper/
+/.gradle_home/

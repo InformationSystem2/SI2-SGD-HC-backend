@@ -75,7 +75,6 @@ dependencies {
 
 tasks.named('test') {
 	useJUnitPlatform()
-    enabled = false // Ignorar ejecución de tests para permitir el build sin base de datos
 }
 
 tasks.withType(Javadoc) {
