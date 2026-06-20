@@ -16,6 +16,7 @@ import com.sgd_hc.patients.entity.Patient;
 import com.sgd_hc.patients.repository.PatientRepository;
 import com.sgd_hc.security.details.SecurityUser;
 import com.sgd_hc.tenants.entity.Tenant;
+import com.sgd_hc.tenants.service.PlanLimitValidator;
 import com.sgd_hc.tenants.service.TenantResolverService;
 import com.sgd_hc.users.entity.User;
 import jakarta.persistence.EntityNotFoundException;
@@ -53,6 +54,7 @@ public class DicomParserService implements AuditableService<UUID, DicomStudy> {
     private final TenantResolverService   tenantResolverService;
     private final DicomMapper             dicomMapper;
     private final FileStorageService      fileStorageService;
+    private final PlanLimitValidator      planLimitValidator;
 
     /**
      * Punto de entrada principal. Persiste la jerarquía Study → Series → Instance
@@ -66,6 +68,9 @@ public class DicomParserService implements AuditableService<UUID, DicomStudy> {
         }
 
         Tenant tenant   = tenantResolverService.resolve();
+        planLimitValidator.checkDicomStudiesLimit(tenant.getId());
+        planLimitValidator.checkStorageLimit(tenant.getId(), file.getSize());
+
         User uploader   = currentUser();
         Patient patient = patientRepository.findById(patientId)
                 .orElseThrow(() -> new EntityNotFoundException(
@@ -114,6 +119,11 @@ public class DicomParserService implements AuditableService<UUID, DicomStudy> {
                 .orElseThrow(() -> new EntityNotFoundException(
                         "Paciente no encontrado con id: " + patientId));
         Tenant tenant   = tenantResolverService.resolve();
+        planLimitValidator.checkDicomStudiesLimit(tenant.getId());
+
+        long totalBytes = files.stream().mapToLong(MultipartFile::getSize).sum();
+        planLimitValidator.checkStorageLimit(tenant.getId(), totalBytes);
+
         User uploader   = currentUser();
 
         List<DicomUploadMultiItemDto> uploaded = new ArrayList<>();
@@ -255,6 +265,7 @@ public class DicomParserService implements AuditableService<UUID, DicomStudy> {
         instance.setSopInstanceUid(sopUid);
         instance.setInstanceNumber(attrs.getInt(Tag.InstanceNumber, 0));
         instance.setFilePath(filePath);
+        instance.setFileSizeBytes(fileStorageService.getFileSize(filePath));
         instance.setRows(attrs.getInt(Tag.Rows, 0));
         instance.setColumns(attrs.getInt(Tag.Columns, 0));
         instance.setBitsAllocated(attrs.getInt(Tag.BitsAllocated, 0));

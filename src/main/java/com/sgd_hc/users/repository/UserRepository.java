@@ -30,6 +30,9 @@ public interface UserRepository extends JpaRepository<User, UUID> {
 
     List<User> findAllByTenantId(UUID tenantId);
 
+    @Query("SELECT COUNT(u) FROM users u WHERE u.tenant.id = :tenantId")
+    long countByTenantId(UUID tenantId);
+
     @Modifying
     @Query(value = "DELETE FROM users WHERE tenant_id = :tenantId", nativeQuery = true)
     void deleteAllByTenantId(UUID tenantId);

@@ -76,4 +76,8 @@ public class Document extends BaseEntity {
     @Column(name = "version_number", nullable = false)
     @Builder.Default
     private Integer versionNumber = 1;
+
+    @Column(name = "file_size_bytes")
+    @Builder.Default
+    private Long fileSizeBytes = 0L;
 }

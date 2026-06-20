@@ -37,5 +37,8 @@ public interface RoleRepository extends JpaRepository<Role, Long> {
 
     @Modifying
     @Query(value = "DELETE FROM role_user WHERE user_id IN (SELECT id FROM users WHERE tenant_id = :tenantId)", nativeQuery = true)
-    void deleteAllRoleUserByTenantId(@Param("tenantId") UUID tenantId);    
+    void deleteAllRoleUserByTenantId(@Param("tenantId") UUID tenantId);
+
+    @Query(value = "SELECT COUNT(*) FROM roles WHERE tenant_id = :tenantId", nativeQuery = true)
+    long countByTenantId(@Param("tenantId") UUID tenantId);    
 }
