@@ -101,8 +101,10 @@ public class TenantController {
     @PreAuthorize("hasAnyAuthority('ROLE_ADMIN', 'ROLE_SUPERUSER')")
     public ResponseEntity<RenewSubscriptionResponseDto> renewSubscription(
             @RequestHeader(value = "X-Tenant-ID", required = true) String tenantSlug,
-            @RequestBody String plan) {
-        return ResponseEntity.ok(tenantService.renewSubscription(tenantSlug, plan));
+            @RequestBody Map<String, String> body) {
+        String plan = body.get("plan");
+        String billingCycle = body.getOrDefault("billingCycle", "MONTHLY");
+        return ResponseEntity.ok(tenantService.renewSubscription(tenantSlug, plan, billingCycle));
     }
 
     @PostMapping("/current/change-plan")

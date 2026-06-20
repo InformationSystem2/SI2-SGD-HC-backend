@@ -16,6 +16,7 @@ public record TenantInfoDto(
     SubscriptionStatus subscriptionStatus,
     LocalDate subscriptionStartDate,
     LocalDate subscriptionEndDate,
+    String billingCycle,
     String adminFirstName,
     String adminLastName,
     String adminEmail,

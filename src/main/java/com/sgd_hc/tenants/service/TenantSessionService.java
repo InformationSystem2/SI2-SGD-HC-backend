@@ -48,11 +48,11 @@ public class TenantSessionService implements AuditableService<String, TenantSess
     }
 
     @Auditable(resourceType = "TENANT_SESSION", actionType = ActionType.CREATE)
-    public String createSession(String plan) {
+    public String createSession(String plan, String billingCycle) {
         String token = UUID.randomUUID().toString();
         Instant expiresAt = Instant.now().plusSeconds(SESSION_TTL_MINUTES * 60);
 
-        SessionData data = new SessionData(plan, expiresAt);
+        SessionData data = new SessionData(plan, billingCycle != null ? billingCycle : "MONTHLY", expiresAt);
         saveSession(token, data);
         log.info("Created new tenant session with token: {}", token.substring(0, 8));
         return token;
@@ -117,13 +117,15 @@ public class TenantSessionService implements AuditableService<String, TenantSess
     @Setter
     public static class SessionData {
         private String plan;
+        private String billingCycle;
         private Instant expiresAt;
         private TenantRegistrationDataDto registrationData;
 
         public SessionData() {}
 
-        public SessionData(String plan, Instant expiresAt) {
+        public SessionData(String plan, String billingCycle, Instant expiresAt) {
             this.plan = plan;
+            this.billingCycle = billingCycle;
             this.expiresAt = expiresAt;
         }
     }

@@ -16,6 +16,7 @@ public record TenantListItemDto(
         SubscriptionPlan subscriptionPlan,
         SubscriptionStatus subscriptionStatus,
         LocalDate subscriptionEndDate,
+        String billingCycle,
         String adminName,
         String adminEmail,
         int userCount,

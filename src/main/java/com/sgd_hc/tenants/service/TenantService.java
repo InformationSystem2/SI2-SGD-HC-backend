@@ -17,6 +17,8 @@ import com.sgd_hc.users.repository.UserRepository;
 import com.sgd_hc.documents.repository.DocumentRepository;
 import com.sgd_hc.documents.repository.DocumentTemplateRepository;
 import com.sgd_hc.patients.repository.PatientRepository;
+import com.sgd_hc.dicom.repository.DicomStudyRepository;
+import com.sgd_hc.dicom.repository.DicomInstanceRepository;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -52,10 +54,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.time.Duration;
 import java.util.Random;
-/**
- * Servicio central para la gestión de Tenants.
- * Incluye lógica de onboarding (público) y gestión administrativa (superadmin).
- */
+
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -67,8 +66,11 @@ public class TenantService implements AuditableService<Object, Tenant> {
     private final DocumentRepository documentRepository;
     private final DocumentTemplateRepository documentTemplateRepository;
     private final PatientRepository patientRepository;
+    private final DicomStudyRepository dicomStudyRepository;
+    private final DicomInstanceRepository dicomInstanceRepository;
     private final TenantSessionService sessionService;
     private final TenantRevocationService revocationService;
+    private final PlanService planService;
     private final ObjectMapper objectMapper;
     private final TenantMapper tenantMapper;
 
@@ -82,6 +84,9 @@ public class TenantService implements AuditableService<Object, Tenant> {
     @Value("${spring.profiles.active}")
     private String activeProfile;
 
+    private static final int MONTHLY_DAYS = 30;
+    private static final int YEARLY_DAYS = 365;
+
     // ── PÚBLICO (Registro y Pago) ─────────────────────────────────
 
     @Transactional
@@ -91,10 +96,9 @@ public class TenantService implements AuditableService<Object, Tenant> {
             throw new IllegalArgumentException("Sesión de registro expirada o inválida. Por favor, inicie nuevamente.");
         }
 
-        // Validate code from Redis
         String redisKey = "verification_code:" + dto.adminEmail();
         String savedCode = redisTemplate.opsForValue().get(redisKey);
-        
+
         if (savedCode == null || !savedCode.equals(dto.validationCode())) {
             throw new IllegalArgumentException("El código de verificación es incorrecto o ha expirado.");
         }
@@ -108,7 +112,6 @@ public class TenantService implements AuditableService<Object, Tenant> {
 
         sessionService.saveRegistrationData(dto.sessionToken(), regData);
 
-        // Borrar el código de redis ya que fue validado exitosamente
         redisTemplate.delete(redisKey);
 
         return Map.of(
@@ -119,7 +122,8 @@ public class TenantService implements AuditableService<Object, Tenant> {
 
     @Transactional
     public TenantSessionResponseDto initSession(TenantInitSessionDto dto) {
-        String token = sessionService.createSession(dto.selectedPlan());
+        String billingCycle = dto.billingCycle() != null ? dto.billingCycle() : "MONTHLY";
+        String token = sessionService.createSession(dto.selectedPlan(), billingCycle);
 
         return new TenantSessionResponseDto(
                 token,
@@ -160,10 +164,12 @@ public class TenantService implements AuditableService<Object, Tenant> {
             throw new IllegalStateException("Datos de registro no encontrados. Por favor, complete el formulario.");
         }
 
+        String billingCycle = sessionData.getBillingCycle() != null ? sessionData.getBillingCycle() : "MONTHLY";
+
         TenantContext.setBypassFilter(true);
 
         try {
-            Tenant tenant = createTenantWithAdmin(regData, sessionData.getPlan());
+            Tenant tenant = createTenantWithAdmin(regData, sessionData.getPlan(), billingCycle);
             sessionService.removeSession(dto.sessionToken());
 
             return Map.of(
@@ -188,11 +194,18 @@ public class TenantService implements AuditableService<Object, Tenant> {
         return slug;
     }
 
-    private Tenant createTenantWithAdmin(TenantRegistrationDataDto regData, String plan) {
+    private int getCycleDays(String billingCycle) {
+        return "YEARLY".equalsIgnoreCase(billingCycle) ? YEARLY_DAYS : MONTHLY_DAYS;
+    }
+
+    private Tenant createTenantWithAdmin(TenantRegistrationDataDto regData, String planName, String billingCycle) {
         String finalSlug = generateUniqueSlug(regData.getTenantName());
 
-        Tenant tenant = tenantMapper.toEntity(regData, finalSlug, SubscriptionPlan.valueOf(plan.toUpperCase()));
-        tenant.setSettings(buildDefaultSettings());
+        SubscriptionPlan plan = SubscriptionPlan.valueOf(planName.toUpperCase());
+        Tenant tenant = tenantMapper.toEntity(regData, finalSlug, plan);
+        tenant.setBillingCycle(billingCycle != null ? billingCycle.toUpperCase() : "MONTHLY");
+        tenant.setSubscriptionEndDate(LocalDate.now().plusDays(getCycleDays(tenant.getBillingCycle())));
+        tenant.setSettings(buildDefaultSettings(planName));
         tenant = tenantRepository.save(tenant);
 
         Tenant systemTenant = tenantRepository.findBySlug(systemSlug)
@@ -207,9 +220,14 @@ public class TenantService implements AuditableService<Object, Tenant> {
         return tenant;
     }
 
-    private Map<String, Object> buildDefaultSettings() {
+    private Map<String, Object> buildDefaultSettings(String planName) {
         Map<String, Object> settings = new HashMap<>();
         settings.putAll(TenantSettingsDefaults.getAllDefaults());
+
+        Map<String, Object> limits = new HashMap<>();
+        planService.getLimitsForPlan(planName).forEach(limits::put);
+        settings.put("limits", limits);
+
         try {
             ClassPathResource res = new ClassPathResource("default-branding.json");
             Map<String, Object> defaultBranding = objectMapper.readValue(res.getInputStream(), Map.class);
@@ -289,17 +307,33 @@ public class TenantService implements AuditableService<Object, Tenant> {
     public TenantStatsDto getTenantStats(String slug) {
         Tenant tenant = findTenantBySlugOrThrow(slug);
 
+        String planName = tenant.getSubscriptionPlan() != null ? tenant.getSubscriptionPlan().name() : "BASIC";
+        Map<String, Long> limits = planService.getLimitsForPlan(planName);
+
         int userCount = userRepository.findAllByTenantId(tenant.getId()).size();
-        Map<String, Object> settings = getSettingsFromTenant(tenant);
-        PlanLimits limits = extractPlanLimits(settings);
+        long storageUsedBytes = documentRepository.sumFileSizeBytesByTenantId(tenant.getId())
+                + dicomInstanceRepository.sumFileSizeBytesByTenantId(tenant.getId());
+        long storageUsedMB = storageUsedBytes / (1024 * 1024);
+        long patientCount = patientRepository.countByTenantId(tenant.getId());
+        long documentCount = documentRepository.countByTenantId(tenant.getId());
+        long dicomStudyCount = dicomStudyRepository.countByTenantId(tenant.getId());
+        long roleCount = roleRepository.countByTenantId(tenant.getId());
 
         return new TenantStatsDto(
                 userCount,
-                limits.maxUsers(),
+                limits.getOrDefault("maxUsers", 0L).intValue(),
+                storageUsedMB,
+                limits.getOrDefault("maxStorageMB", 0L),
                 0L,
-                limits.maxStorageMB(),
-                0L,
-                limits.maxApiCalls()
+                limits.getOrDefault("maxApiCallsPerMonth", 0L),
+                patientCount,
+                limits.getOrDefault("maxPatients", 0L),
+                documentCount,
+                limits.getOrDefault("maxDocuments", 0L),
+                dicomStudyCount,
+                limits.getOrDefault("maxDicomStudies", 0L),
+                roleCount,
+                limits.getOrDefault("maxStaffRoles", 0L)
         );
     }
 
@@ -328,22 +362,20 @@ public class TenantService implements AuditableService<Object, Tenant> {
         );
     }
 
-    private PlanLimits extractPlanLimits(Map<String, Object> settings) {
-        @SuppressWarnings("unchecked")
-        Map<String, Object> limits = (Map<String, Object>) settings.getOrDefault("limits", new HashMap<>());
-        return new PlanLimits(
-                ((Number) limits.getOrDefault("maxUsers", 10)).intValue(),
-                ((Number) limits.getOrDefault("maxStorageMB", 5120L)).longValue(),
-                ((Number) limits.getOrDefault("maxApiCallsPerMonth", 50000L)).longValue()
-        );
-    }
-
-    private record PlanLimits(int maxUsers, long maxStorageMB, long maxApiCalls) {}
-
     private Map<String, Object> getSettingsFromTenant(Tenant tenant) {
         Map<String, Object> settings = tenant.getSettings();
         if (settings == null || settings.isEmpty()) {
-            return TenantSettingsDefaults.getAllDefaults();
+            // Read limits from PlanService as single source of truth
+            String planName = tenant.getSubscriptionPlan() != null
+                    ? tenant.getSubscriptionPlan().name()
+                    : "BASIC";
+            Map<String, Object> defaults = TenantSettingsDefaults.getAllDefaults();
+            Map<String, Object> planLimits = new HashMap<>();
+            planLimits.put("maxUsers", planService.getLimitOrDefault(planName, "maxUsers", 0L));
+            planLimits.put("maxStorageMB", planService.getLimitOrDefault(planName, "maxStorageMB", 0L));
+            planLimits.put("maxApiCallsPerMonth", planService.getLimitOrDefault(planName, "maxApiCallsPerMonth", 0L));
+            defaults.put("limits", planLimits);
+            return defaults;
         }
         return TenantSettingsDefaults.mergeWithDefaults(settings);
     }
@@ -375,7 +407,6 @@ public class TenantService implements AuditableService<Object, Tenant> {
         return getSettingsFromTenant(tenant);
     }
 
-    // ── HELPERS ─────────────────────────────────────────────────────────────
     private Tenant findOrThrow(UUID id) {
         return tenantRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Tenant no encontrado: " + id));
@@ -425,9 +456,10 @@ public class TenantService implements AuditableService<Object, Tenant> {
 
         int userCount = tenantRepository.countActiveUsersByTenantId(tenant.getId());
         Map<String, Object> settings = getSettingsFromTenant(tenant);
-        PlanLimits limits = extractPlanLimits(settings);
+        String planName = tenant.getSubscriptionPlan() != null ? tenant.getSubscriptionPlan().name() : "BASIC";
+        Map<String, Long> planLimits = planService.getLimitsForPlan(planName);
 
-        return mapToTenantDetailDto(tenant, adminInfo, userCount, settings, limits, authorities);
+        return mapToTenantDetailDto(tenant, adminInfo, userCount, settings, planLimits, authorities);
     }
 
     @Transactional
@@ -479,14 +511,12 @@ public class TenantService implements AuditableService<Object, Tenant> {
 
         revocationService.revokeAllTokensForTenant(id, Instant.now());
 
-        // Order: Documents -> Templates -> Patients -> Roles -> Users -> Tenant
         log.info("Hard delete: removing all related entities for tenant {}", tenant.getSlug());
 
         documentRepository.deleteAllByTenantId(id);
         documentTemplateRepository.deleteAllByTenantId(id);
         patientRepository.deleteAllByTenantId(id);
 
-        // Delete pivot tables before roles/users
         roleRepository.deleteAllRoleUserByTenantId(id);
         roleRepository.deleteAllRolePermissionByTenantId(id);
         roleRepository.deleteAllByTenantId(id);
@@ -510,22 +540,40 @@ public class TenantService implements AuditableService<Object, Tenant> {
 
     @Transactional
     @Auditable(resourceType = "TENANT_SUBSCRIPTION", actionType = ActionType.UPDATE, idParamName = "slug")
-    public RenewSubscriptionResponseDto renewSubscription(String slug, String plan) {
+    public RenewSubscriptionResponseDto renewSubscription(String slug, String plan, String billingCycle) {
         Tenant tenant = tenantRepository.findBySlug(slug)
                 .orElseThrow(() -> new IllegalArgumentException("Tenant no encontrado: " + slug));
 
         SubscriptionPlan newPlan = SubscriptionPlan.valueOf(plan.toUpperCase());
         tenant.setSubscriptionPlan(newPlan);
         tenant.setSubscriptionStartDate(LocalDate.now());
+
+        String effectiveBillingCycle = billingCycle != null ? billingCycle.toUpperCase() : tenant.getBillingCycle();
+        if (billingCycle != null) {
+            tenant.setBillingCycle(effectiveBillingCycle);
+        }
+
         tenant.setSubscriptionStatus(SubscriptionStatus.ACTIVE);
+
+        Map<String, Object> settings = tenant.getSettings();
+        if (settings == null) settings = new HashMap<>();
+
+        Map<String, Object> limits = new HashMap<>();
+        planService.getLimitsForPlan(plan).forEach(limits::put);
+        settings.put("limits", limits);
+        tenant.setSettings(settings);
+
+        int cycleDays = getCycleDays(effectiveBillingCycle);
+        LocalDate newEndDate = LocalDate.now().plusDays(cycleDays);
+        tenant.setSubscriptionEndDate(newEndDate);
+
         tenantRepository.save(tenant);
 
-        LocalDate newEndDate = LocalDate.now().plusDays(30);
-
-        log.info("Tenant {} renovó suscripción al plan {}", slug, newPlan);
+        log.info("Tenant {} renovó suscripción al plan {} (ciclo {})", slug, newPlan, effectiveBillingCycle);
 
         return new RenewSubscriptionResponseDto(
                 newPlan.name(),
+                effectiveBillingCycle,
                 LocalDate.now(),
                 newEndDate,
                 "Suscripción renovada exitosamente"
@@ -534,12 +582,12 @@ public class TenantService implements AuditableService<Object, Tenant> {
 
     @Transactional
     @Auditable(resourceType = "TENANT_SUBSCRIPTION", actionType = ActionType.UPDATE, idParamName = "slug")
-    public ChangePlanResponseDto changePlan(String slug, String newPlan) {
+    public ChangePlanResponseDto changePlan(String slug, String newPlanName) {
         Tenant tenant = tenantRepository.findBySlug(slug)
                 .orElseThrow(() -> new IllegalArgumentException("Tenant no encontrado: " + slug));
 
         SubscriptionPlan currentPlan = tenant.getSubscriptionPlan();
-        SubscriptionPlan targetPlan = SubscriptionPlan.valueOf(newPlan.toUpperCase());
+        SubscriptionPlan targetPlan = SubscriptionPlan.valueOf(newPlanName.toUpperCase());
 
         if (currentPlan == targetPlan) {
             throw new IllegalArgumentException("El plan seleccionado es el mismo que el actual");
@@ -549,43 +597,30 @@ public class TenantService implements AuditableService<Object, Tenant> {
 
         Map<String, Object> settings = tenant.getSettings();
         if (settings == null) settings = new HashMap<>();
-        Map<String, Object> limits = getPlanLimits(targetPlan);
+
+        Map<String, Object> limits = new HashMap<>();
+        planService.getLimitsForPlan(newPlanName).forEach(limits::put);
         settings.put("limits", limits);
         tenant.setSettings(settings);
 
-        tenantRepository.save(tenant);
+        int cycleDays = getCycleDays(tenant.getBillingCycle());
+        LocalDate endDate = tenant.getSubscriptionStartDate().plusDays(cycleDays);
+        tenant.setSubscriptionEndDate(endDate);
 
-        LocalDate endDate = tenant.getSubscriptionStartDate().plusDays(30);
+        tenantRepository.save(tenant);
 
         log.info("Tenant {} cambió de plan {} a {}", slug, currentPlan, targetPlan);
 
         return new ChangePlanResponseDto(
                 currentPlan.name(),
                 targetPlan.name(),
+                tenant.getBillingCycle(),
                 endDate,
                 "Plan cambiado exitosamente"
         );
     }
 
-    private Map<String, Object> getPlanLimits(SubscriptionPlan plan) {
-        return switch (plan) {
-            case BASIC -> Map.of(
-                    "maxUsers", 10,
-                    "maxStorageMB", 1000,
-                    "maxApiCallsPerMonth", 1000
-            );
-            case PRO -> Map.of(
-                    "maxUsers", 50,
-                    "maxStorageMB", 10000,
-                    "maxApiCallsPerMonth", 10000
-            );
-            case ENTERPRISE -> Map.of(
-                    "maxUsers", 999999,
-                    "maxStorageMB", 999999999,
-                    "maxApiCallsPerMonth", 999999999
-            );
-        };
-    }
+    // ── MAPPERS ──────────────────────────────────────────────────────────────
 
     private TenantInfoDto mapToTenantInfoDto(Tenant tenant, AdminInfoDto adminInfo, Set<String> authorities) {
         return new TenantInfoDto(
@@ -597,7 +632,8 @@ public class TenantService implements AuditableService<Object, Tenant> {
                 authorities.contains("tenant:read:subscription_plan") ? tenant.getSubscriptionPlan() : null,
                 authorities.contains("tenant:read:subscription_status") ? tenant.getSubscriptionStatus() : null,
                 authorities.contains("tenant:read:subscription_start_date") ? tenant.getSubscriptionStartDate() : null,
-                authorities.contains("tenant:read:subscription_start_date") ? tenant.getSubscriptionStartDate().plusDays(30) : null,
+                authorities.contains("tenant:read:subscription_start_date") ? tenant.getSubscriptionEndDate() : null,
+                authorities.contains("tenant:read:subscription_plan") ? tenant.getBillingCycle() : null,
                 adminInfo != null ? adminInfo.firstName() : null,
                 adminInfo != null ? adminInfo.lastName() : null,
                 adminInfo != null ? adminInfo.email() : null,
@@ -610,17 +646,14 @@ public class TenantService implements AuditableService<Object, Tenant> {
         AdminInfoDto adminInfo = extractAdminInfo(tenant.getSlug());
         int userCount = tenantRepository.countActiveUsersByTenantId(tenant.getId());
 
-        LocalDate endDate = tenant.getSubscriptionStartDate() != null
-                ? tenant.getSubscriptionStartDate().plusDays(30)
-                : null;
-
         return new TenantListItemDto(
                 authorities.contains("tenant:read:id") ? tenant.getId() : null,
                 authorities.contains("tenant:read:name") ? tenant.getName() : null,
                 authorities.contains("tenant:read:slug") ? tenant.getSlug() : null,
                 authorities.contains("tenant:read:subscription_plan") ? tenant.getSubscriptionPlan() : null,
                 authorities.contains("tenant:read:subscription_status") ? tenant.getSubscriptionStatus() : null,
-                authorities.contains("tenant:read:subscription_start_date") ? endDate : null,
+                authorities.contains("tenant:read:subscription_start_date") ? tenant.getSubscriptionEndDate() : null,
+                authorities.contains("tenant:read:subscription_plan") ? tenant.getBillingCycle() : null,
                 adminInfo != null ? adminInfo.firstName() + " " + adminInfo.lastName() : null,
                 adminInfo != null ? adminInfo.email() : null,
                 userCount,
@@ -629,14 +662,28 @@ public class TenantService implements AuditableService<Object, Tenant> {
         );
     }
 
-    private TenantDetailDto mapToTenantDetailDto(Tenant tenant, AdminInfoDto adminInfo, int userCount, Map<String, Object> settings, PlanLimits limits, Set<String> authorities) {
+    private TenantDetailDto mapToTenantDetailDto(Tenant tenant, AdminInfoDto adminInfo, int userCount,
+                                                  Map<String, Object> settings, Map<String, Long> planLimits,
+                                                  Set<String> authorities) {
+        long storageUsedBytes = documentRepository.sumFileSizeBytesByTenantId(tenant.getId())
+                + dicomInstanceRepository.sumFileSizeBytesByTenantId(tenant.getId());
+        long storageUsedMB = storageUsedBytes / (1024 * 1024);
+
         TenantStatsDto stats = new TenantStatsDto(
                 userCount,
-                limits.maxUsers(),
+                planLimits.getOrDefault("maxUsers", 0L).intValue(),
+                storageUsedMB,
+                planLimits.getOrDefault("maxStorageMB", 0L),
                 0L,
-                limits.maxStorageMB(),
-                0L,
-                limits.maxApiCalls()
+                planLimits.getOrDefault("maxApiCallsPerMonth", 0L),
+                patientRepository.countByTenantId(tenant.getId()),
+                planLimits.getOrDefault("maxPatients", 0L),
+                documentRepository.countByTenantId(tenant.getId()),
+                planLimits.getOrDefault("maxDocuments", 0L),
+                dicomStudyRepository.countByTenantId(tenant.getId()),
+                planLimits.getOrDefault("maxDicomStudies", 0L),
+                roleRepository.countByTenantId(tenant.getId()),
+                planLimits.getOrDefault("maxStaffRoles", 0L)
         );
 
         return new TenantDetailDto(
@@ -649,7 +696,8 @@ public class TenantService implements AuditableService<Object, Tenant> {
                 authorities.contains("tenant:read:subscription_plan") ? tenant.getSubscriptionPlan() : null,
                 authorities.contains("tenant:read:subscription_status") ? tenant.getSubscriptionStatus() : null,
                 authorities.contains("tenant:read:subscription_start_date") ? tenant.getSubscriptionStartDate() : null,
-                authorities.contains("tenant:read:subscription_start_date") ? tenant.getSubscriptionStartDate().plusDays(30) : null,
+                authorities.contains("tenant:read:subscription_start_date") ? tenant.getSubscriptionEndDate() : null,
+                authorities.contains("tenant:read:subscription_plan") ? tenant.getBillingCycle() : null,
                 authorities.contains("tenant:read:settings") ? tenant.getSettings() : null,
                 adminInfo,
                 stats,

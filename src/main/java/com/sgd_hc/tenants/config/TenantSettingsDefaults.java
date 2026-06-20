@@ -8,9 +8,9 @@ public final class TenantSettingsDefaults {
     private TenantSettingsDefaults() {}
 
     public static final Map<String, Object> LIMITS = Map.of(
-            "maxUsers", 100,
-            "maxStorageMB", 5000,
-            "maxApiCallsPerMonth", 10000
+            "maxUsers", 0,
+            "maxStorageMB", 0,
+            "maxApiCallsPerMonth", 0
     );
 
     public static final Map<String, Object> REGIONAL = Map.of(
