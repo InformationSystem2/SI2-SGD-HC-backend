@@ -42,6 +42,7 @@ dependencies {
 	implementation 'org.flywaydb:flyway-database-postgresql'
 	implementation 'org.springframework.boot:spring-boot-starter-restclient'
 	implementation 'org.springframework.boot:spring-boot-starter-validation'
+	implementation 'org.springframework.boot:spring-boot-starter-mail'
 	implementation 'org.springframework:spring-aspects:7.0.6'
     implementation 'io.jsonwebtoken:jjwt-api:0.12.5'
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
@@ -68,6 +69,8 @@ dependencies {
 
     implementation 'net.datafaker:datafaker:2.4.2'
     implementation 'com.azure:azure-storage-blob:12.29.0'
+
+    implementation 'com.google.cloud:google-cloud-logging-logback:0.131.4-alpha'
 }
 
 tasks.named('test') {
@@ -88,7 +91,9 @@ tasks.named('bootRun') {
         project.envVars.each { key, val ->
             // Quitar comillas si están presentes en .env
             def cleanVal = val.replaceAll(/^"|"$/, "")
-            environment key, cleanVal
+            if (System.getenv(key) == null) {
+                environment key, cleanVal
+            }
         }
     }
 }

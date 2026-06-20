@@ -48,6 +48,14 @@ public class GlobalExceptionHandler {
         return errorBody(HttpStatus.BAD_REQUEST, "Validation Error", message, request);
     }
 
+    @ExceptionHandler(org.springframework.web.method.annotation.MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<Object> handleTypeMismatch(org.springframework.web.method.annotation.MethodArgumentTypeMismatchException ex, WebRequest request) {
+        String typeName = ex.getRequiredType() != null ? ex.getRequiredType().getSimpleName() : "desconocido";
+        String message = String.format("El parámetro '%s' debe ser un %s válido. Valor recibido: '%s'", ex.getName(), typeName, ex.getValue());
+        return errorBody(HttpStatus.BAD_REQUEST, "Invalid Parameter Type", message, request);
+    }
+
+
     @ExceptionHandler(EmptyResultDataAccessException.class)
     public ResponseEntity<Object> handleEmptyResultDataAccessException(org.springframework.dao.EmptyResultDataAccessException ex, WebRequest request) {
         return errorBody(HttpStatus.NOT_FOUND, "Not Found",
@@ -56,6 +64,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(TenantSuspendedException.class)
     public ResponseEntity<Object> handleTenantSuspendedException(TenantSuspendedException ex, WebRequest request) {
+        request.setAttribute("auditErrorMessage", ex.getMessage(), WebRequest.SCOPE_REQUEST);
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("timestamp", LocalDateTime.now());
         body.put("status", HttpStatus.FORBIDDEN.value());
@@ -74,6 +83,7 @@ public class GlobalExceptionHandler {
     }
 
     private ResponseEntity<Object> errorBody(HttpStatus status, String error, String message, WebRequest request) {
+        request.setAttribute("auditErrorMessage", message, WebRequest.SCOPE_REQUEST);
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("timestamp", LocalDateTime.now());
         body.put("status", status.value());

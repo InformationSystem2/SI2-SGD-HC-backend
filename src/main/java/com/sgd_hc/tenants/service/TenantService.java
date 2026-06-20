@@ -1,7 +1,12 @@
 package com.sgd_hc.tenants.service;
 
+import com.sgd_hc.audit.annotation.Auditable;
+import com.sgd_hc.audit.entity.enums.ActionType;
+import com.sgd_hc.audit.service.AuditableService;
+
 import com.sgd_hc.tenants.dto.*;
 import com.sgd_hc.tenants.entity.*;
+import com.sgd_hc.tenants.mapper.TenantMapper;
 import com.sgd_hc.tenants.repository.TenantRepository;
 import com.sgd_hc.tenants.utils.TagSlugGenerator;
 import com.sgd_hc.users.entity.Role;
@@ -33,6 +38,8 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.data.redis.core.RedisTemplate;
+import com.sgd_hc.config.mail.EmailService;
 
 import java.io.IOException;
 
@@ -43,7 +50,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
-
+import java.time.Duration;
+import java.util.Random;
 /**
  * Servicio central para la gestión de Tenants.
  * Incluye lógica de onboarding (público) y gestión administrativa (superadmin).
@@ -51,7 +59,7 @@ import java.util.UUID;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class TenantService {
+public class TenantService implements AuditableService<Object, Tenant> {
 
     private final TenantRepository tenantRepository;
     private final RoleRepository roleRepository;
@@ -62,11 +70,17 @@ public class TenantService {
     private final TenantSessionService sessionService;
     private final TenantRevocationService revocationService;
     private final ObjectMapper objectMapper;
+    private final TenantMapper tenantMapper;
 
     private final PasswordEncoder passwordEncoder;
+    private final RedisTemplate<String, String> redisTemplate;
+    private final EmailService emailService;
 
     @Value("${app.seed.system.slug}")
     private String systemSlug;
+
+    @Value("${spring.profiles.active}")
+    private String activeProfile;
 
     // ── PÚBLICO (Registro y Pago) ─────────────────────────────────
 
@@ -77,21 +91,25 @@ public class TenantService {
             throw new IllegalArgumentException("Sesión de registro expirada o inválida. Por favor, inicie nuevamente.");
         }
 
+        // Validate code from Redis
+        String redisKey = "verification_code:" + dto.adminEmail();
+        String savedCode = redisTemplate.opsForValue().get(redisKey);
+        
+        if (savedCode == null || !savedCode.equals(dto.validationCode())) {
+            throw new IllegalArgumentException("El código de verificación es incorrecto o ha expirado.");
+        }
+
         var sessionData = sessionOpt.get();
 
-        TenantSessionService.RegistrationData regData = new TenantSessionService.RegistrationData(
-                dto.tenantName(),
-                dto.adminFirstName(),
-                dto.adminLastName(),
-                dto.adminEmail(),
-                dto.adminPassword(),
-                dto.adminPhone(),
-                dto.adminDocumentType(),
-                dto.adminDocumentNumber(),
-                dto.adminGender()
+        TenantRegistrationDataDto regData = tenantMapper.toRegistrationData(
+                dto,
+                passwordEncoder.encode(dto.adminPassword())
         );
 
         sessionService.saveRegistrationData(dto.sessionToken(), regData);
+
+        // Borrar el código de redis ya que fue validado exitosamente
+        redisTemplate.delete(redisKey);
 
         return Map.of(
                 "status", "REGISTRATION_SAVED",
@@ -109,7 +127,27 @@ public class TenantService {
         );
     }
 
+    public SendCodeResponseDto sendVerificationCode(SendCodeRequestDto dto) {
+        String email = dto.getEmail();
+        String code = String.format("%06d", new Random().nextInt(999999));
+        String redisKey = "verification_code:" + email;
+
+        redisTemplate.opsForValue().set(redisKey, code, Duration.ofMinutes(10));
+
+        if ("dev".equalsIgnoreCase(activeProfile)) {
+            log.info("Entorno dev: Código generado para {}: {}", email, code);
+            return new SendCodeResponseDto("Código generado para pruebas", code);
+        } else {
+            boolean sent = emailService.sendVerificationCode(email, code);
+            if (!sent) {
+                throw new IllegalStateException("Error al enviar el correo de verificación. Intente nuevamente.");
+            }
+            return new SendCodeResponseDto("Código enviado exitosamente", null);
+        }
+    }
+
     @Transactional
+    @Auditable(resourceType = "TENANT", actionType = ActionType.CREATE, idParamName = "slug")
     public Map<String, Object> processPayment(TenantPaymentRequestDto dto) {
         var sessionOpt = sessionService.getSession(dto.sessionToken());
         if (sessionOpt.isEmpty()) {
@@ -150,19 +188,11 @@ public class TenantService {
         return slug;
     }
 
-    private Tenant createTenantWithAdmin(TenantSessionService.RegistrationData regData, String plan) {
+    private Tenant createTenantWithAdmin(TenantRegistrationDataDto regData, String plan) {
         String finalSlug = generateUniqueSlug(regData.getTenantName());
 
-        Tenant tenant = Tenant.builder()
-                .name(regData.getTenantName())
-                .slug(finalSlug)
-                .email(regData.getAdminEmail())
-                .phone(regData.getAdminPhone())
-                .subscriptionPlan(SubscriptionPlan.valueOf(plan.toUpperCase()))
-                .subscriptionStatus(SubscriptionStatus.ACTIVE)
-                .subscriptionStartDate(LocalDate.now())
-                .settings(buildDefaultSettings())
-                .build();
+        Tenant tenant = tenantMapper.toEntity(regData, finalSlug, SubscriptionPlan.valueOf(plan.toUpperCase()));
+        tenant.setSettings(buildDefaultSettings());
         tenant = tenantRepository.save(tenant);
 
         Tenant systemTenant = tenantRepository.findBySlug(systemSlug)
@@ -171,19 +201,7 @@ public class TenantService {
         Role adminRole = roleRepository.findByNameAndTenantId("ROLE_ADMIN", systemTenant.getId())
                 .orElseThrow(() -> new IllegalStateException("Rol global ADMIN no encontrado."));
 
-        User admin = User.builder()
-                .username("admin." + tenant.getSlug())
-                .email(regData.getAdminEmail())
-                .firstName(regData.getAdminFirstName())
-                .lastName(regData.getAdminLastName())
-                .password(passwordEncoder.encode(regData.getAdminPassword()))
-                .documentType(com.sgd_hc.users.entity.DocumentType.valueOf(regData.getAdminDocumentType().toUpperCase()))
-                .documentNumber(regData.getAdminDocumentNumber())
-                .gender(regData.getAdminGender())
-                .isActive(true)
-                .roles(new java.util.HashSet<>(Set.of(adminRole)))
-                .tenant(tenant)
-                .build();
+        User admin = tenantMapper.toAdminUserEntity(regData, adminRole, tenant);
         userRepository.save(admin);
 
         return tenant;
@@ -221,6 +239,7 @@ public class TenantService {
     }
 
     @Transactional
+    @Auditable(resourceType = "TENANT", actionType = ActionType.UPDATE, idParamName = "slug")
     public TenantInfoDto updateTenantBasicInfo(String slug, Map<String, Object> data) {
         Set<String> authorities = currentAuthorities();
         validateUpdateBasicInfoPermissions(data, authorities);
@@ -260,6 +279,7 @@ public class TenantService {
     }
 
     @Transactional
+    @Auditable(resourceType = "TENANT_SETTINGS", actionType = ActionType.UPDATE, idParamName = "slug")
     public Map<String, Object> updateSettingsBySlug(String slug, Map<String, Object> newSettings) {
         requireAuthority(currentAuthorities(), "tenant:update:settings");
         Tenant tenant = findTenantBySlugOrThrow(slug);
@@ -411,6 +431,7 @@ public class TenantService {
     }
 
     @Transactional
+    @Auditable(resourceType = "TENANT", actionType = ActionType.UPDATE, idParamName = "id")
     public TenantDetailDto suspendTenant(UUID id) {
         Tenant tenant = findOrThrow(id);
 
@@ -429,6 +450,7 @@ public class TenantService {
     }
 
     @Transactional
+    @Auditable(resourceType = "TENANT", actionType = ActionType.UPDATE, idParamName = "id")
     public TenantDetailDto reactivateTenant(UUID id) {
         Tenant tenant = findOrThrow(id);
 
@@ -447,6 +469,7 @@ public class TenantService {
     }
 
     @Transactional
+    @Auditable(resourceType = "TENANT", actionType = ActionType.DELETE, idParamName = "id")
     public void hardDeleteTenant(UUID id, String confirmText) {
         Tenant tenant = findOrThrow(id);
 
@@ -456,7 +479,6 @@ public class TenantService {
 
         revocationService.revokeAllTokensForTenant(id, Instant.now());
 
-        // IMPORTANT: Delete entities in correct order to avoid foreign key violations
         // Order: Documents -> Templates -> Patients -> Roles -> Users -> Tenant
         log.info("Hard delete: removing all related entities for tenant {}", tenant.getSlug());
 
@@ -487,6 +509,7 @@ public class TenantService {
     // ── SUSCRIPCIÓN: Renovación y Cambio de Plan ─────────────────────────────
 
     @Transactional
+    @Auditable(resourceType = "TENANT_SUBSCRIPTION", actionType = ActionType.UPDATE, idParamName = "slug")
     public RenewSubscriptionResponseDto renewSubscription(String slug, String plan) {
         Tenant tenant = tenantRepository.findBySlug(slug)
                 .orElseThrow(() -> new IllegalArgumentException("Tenant no encontrado: " + slug));
@@ -510,6 +533,7 @@ public class TenantService {
     }
 
     @Transactional
+    @Auditable(resourceType = "TENANT_SUBSCRIPTION", actionType = ActionType.UPDATE, idParamName = "slug")
     public ChangePlanResponseDto changePlan(String slug, String newPlan) {
         Tenant tenant = tenantRepository.findBySlug(slug)
                 .orElseThrow(() -> new IllegalArgumentException("Tenant no encontrado: " + slug));
@@ -642,5 +666,15 @@ public class TenantService {
         if (data.containsKey("logoUrl")) requireAuthority(authorities, "tenant:update:logo_url");
     }
 
+    @Override
+    public Tenant getEntity(Object id) {
+        if (id instanceof UUID) return findOrThrow((UUID) id);
+        if (id instanceof String) return findTenantBySlugOrThrow((String) id);
+        return null;
+    }
 
+    @Override
+    public Map<String, Object> toAuditMap(Tenant entity) {
+        return tenantMapper.toAuditMap(entity);
+    }
 }

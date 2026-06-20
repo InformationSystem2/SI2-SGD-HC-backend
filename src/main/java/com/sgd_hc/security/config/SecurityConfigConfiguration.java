@@ -1,5 +1,6 @@
 package com.sgd_hc.security.config;
 
+import com.sgd_hc.audit.filter.AuditLogFilter;
 import com.sgd_hc.security.filter.JwtAuthenticationFilter;
 import lombok.RequiredArgsConstructor;
 
@@ -31,6 +32,7 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 public class SecurityConfigConfiguration {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
+    private final AuditLogFilter auditLogFilter;
 
     @Value("${app.cors.allowed-origins}")
     private List<String> allowedOrigins;
@@ -58,6 +60,7 @@ public class SecurityConfigConfiguration {
                 .csrf(AbstractHttpConfigurer::disable)
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(PUBLIC_URLS).permitAll()
+                        .requestMatchers("/api/audit/**").hasRole("SUPERUSER")
                         .anyRequest().authenticated()
                 )
                 .sessionManagement(session ->
@@ -70,7 +73,8 @@ public class SecurityConfigConfiguration {
                             response.getWriter().write("{\"error\": \"Unauthorized\", \"message\": \"Debes iniciar sesión para acceder a este recurso.\"}");
                         })
                 )
-                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
+                .addFilterAfter(auditLogFilter, JwtAuthenticationFilter.class);                
 
         return http.build();
     }
@@ -92,8 +96,8 @@ public class SecurityConfigConfiguration {
         // Usar originPatterns es más robusto para múltiples dominios y permite credenciales
         config.setAllowedOriginPatterns(allowedOrigins);
         config.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
-        config.setAllowedHeaders(Arrays.asList("Authorization", "Content-Type", "X-Requested-With", "Accept", "Origin", "Access-Control-Request-Method", "Access-Control-Request-Headers", "X-Tenant-ID"));
-        config.setExposedHeaders(Arrays.asList("Authorization"));
+        config.setAllowedHeaders(Arrays.asList("Authorization", "Content-Type", "X-Requested-With", "Accept", "Origin", "Access-Control-Request-Method", "Access-Control-Request-Headers", "X-Tenant-ID", "X-Session-ID", "X-Client-Time"));
+        config.setExposedHeaders(Arrays.asList("Authorization", "X-Session-ID", "X-Client-Time", "Content-Disposition"));
         config.setAllowCredentials(true);
         config.setMaxAge(3600L);
 

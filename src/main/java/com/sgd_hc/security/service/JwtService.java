@@ -4,6 +4,7 @@ import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
+import com.sgd_hc.users.entity.Role;
 import lombok.Getter;
 import org.jspecify.annotations.NonNull;
 import org.springframework.beans.factory.annotation.Value;
@@ -20,6 +21,7 @@ import java.util.UUID;
 import java.util.function.Function;
 
 import com.sgd_hc.security.details.SecurityUser;
+import java.util.List;
 
 @Service
 public class JwtService {
@@ -73,10 +75,10 @@ public class JwtService {
     public String generateAccessToken(@NonNull UserDetails userDetails, Instant tenantSuspendedAt) {
         Map<String, Object> extraClaims = new HashMap<>();
         
-        java.util.List<String> roles;
+        List<String> roles;
         if (userDetails instanceof SecurityUser su) {
             roles = su.getUser().getRoles().stream()
-                    .map(com.sgd_hc.users.entity.Role::getName)
+                    .map(Role::getName)
                     .toList();
             extraClaims.put("userId", su.getUser().getId().toString());
         } else {

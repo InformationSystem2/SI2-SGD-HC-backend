@@ -3,7 +3,10 @@ package com.sgd_hc.security.controller;
 import com.sgd_hc.security.dto.AuthRequestDto;
 import com.sgd_hc.security.dto.AuthResponseDto;
 import com.sgd_hc.security.dto.RefreshTokenRequestDto;
+import com.sgd_hc.security.dto.ForgotPasswordRequestDto;
+import com.sgd_hc.security.dto.VerifyRecoveryCodeRequestDto;
 import com.sgd_hc.security.service.AuthService;
+import com.sgd_hc.tenants.dto.SendCodeResponseDto;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -17,6 +20,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.GrantedAuthority;
 import java.util.Collection;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/auth")
@@ -33,6 +37,18 @@ public class AuthController {
     @PostMapping("/refresh")
     public ResponseEntity<AuthResponseDto> refresh(@Valid @RequestBody RefreshTokenRequestDto request) {
         return ResponseEntity.ok(authService.refreshToken(request));
+    }
+
+    @PostMapping("/public/forgot-password")
+    public ResponseEntity<SendCodeResponseDto> forgotPassword(
+            @Valid @RequestBody ForgotPasswordRequestDto request) {
+        return ResponseEntity.ok(authService.sendPasswordRecoveryCode(request));
+    }
+
+    @PostMapping("/public/reset-password")
+    public ResponseEntity<Map<String, String>> resetPassword(
+            @Valid @RequestBody VerifyRecoveryCodeRequestDto request) {
+        return ResponseEntity.ok(authService.resetPassword(request));
     }
 
     @GetMapping("/me/permissions")

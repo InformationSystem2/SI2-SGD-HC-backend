@@ -10,6 +10,9 @@ import com.sgd_hc.patients.entity.Gender;
 import com.sgd_hc.patients.entity.Patient;
 import com.sgd_hc.users.entity.DocumentType;
 
+import java.util.LinkedHashMap;
+import java.util.Map;
+
 @Component
 public class PatientMapper {
 
@@ -68,4 +71,35 @@ public class PatientMapper {
                 .birthDate(userAuthorities.contains("patient:read:birth_date") ? patient.getBirthDate() : null)
                 .build();
     }
+
+    public Map<String, Object> toAuditMap(Patient entity) {
+        Map<String, Object> map = new LinkedHashMap<>();
+        map.put("id", entity.getId().toString());
+        map.put("firstName", entity.getFirstName());
+        map.put("lastName", entity.getLastName());
+        map.put("documentType", entity.getDocumentType() != null ? entity.getDocumentType().name() : null);
+        map.put("documentNumber", entity.getDocumentNumber());
+        map.put("phone", entity.getPhone());
+        map.put("address", entity.getAddress());
+        map.put("gender", entity.getGender() != null ? entity.getGender().name() : null);
+        map.put("birthDate", entity.getBirthDate() != null ? entity.getBirthDate().toString() : null);
+        map.put("tenantId", entity.getTenant() != null ? entity.getTenant().getId().toString() : null);
+        map.put("createdAt", entity.getCreatedAt() != null ? entity.getCreatedAt().toString() : null);
+        map.put("updatedAt", entity.getUpdatedAt() != null ? entity.getUpdatedAt().toString() : null);
+        return map;
+    }
+
+    public Map<String, Object> toAuditMapFromDto(PatientResponseDto dto) {
+        Map<String, Object> map = new LinkedHashMap<>();
+        map.put("id", dto.id().toString());
+        map.put("firstName", dto.firstName());
+        map.put("lastName", dto.lastName());
+        map.put("documentType", dto.documentType());
+        map.put("documentNumber", dto.documentNumber());
+        map.put("phone", dto.phone());
+        map.put("address", dto.address());
+        map.put("gender", dto.gender());
+        map.put("birthDate", dto.birthDate() != null ? dto.birthDate().toString() : null);
+        return map;
+    }    
 }

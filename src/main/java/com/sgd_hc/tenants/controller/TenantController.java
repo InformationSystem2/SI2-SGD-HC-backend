@@ -36,6 +36,12 @@ public class TenantController {
         return ResponseEntity.ok(tenantService.initSession(dto));
     }
 
+    @PostMapping("/public/send-verification-code")
+    public ResponseEntity<SendCodeResponseDto> sendVerificationCode(
+            @Valid @RequestBody SendCodeRequestDto dto) {
+        return ResponseEntity.ok(tenantService.sendVerificationCode(dto));
+    }
+
     @PostMapping("/public/register")
     public ResponseEntity<Map<String, Object>> register(
             @Valid @RequestBody TenantRegisterRequestDto dto) {

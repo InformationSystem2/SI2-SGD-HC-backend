@@ -1,0 +1,33 @@
+name: sgd-hc-backup-standalone
+services:
+  # Servicio Exclusivo de Backups
+  # Ejecuta los scripts de backup hacia la base de datos local del Host
+  backup:
+    image: postgres:18-alpine
+    container_name: sgd-hc-backup-standalone
+    env_file:
+      - .env
+    environment:
+      # Conecta al localhost de tu maquina fisica/host en vez de al contenedor
+      DB_HOST: host.docker.internal
+      DB_NAME: ${DB_NAME:-sgd_hc}
+      DB_USERNAME: ${DB_USERNAME:-superuser}
+      DB_PASSWORD: ${DB_PASSWORD:-superuser}
+      RUNNING_IN_DOCKER: "true"
+      AZURE_STORAGE_SAS_URL: ${AZURE_STORAGE_SAS_URL:-}
+      GCS_BUCKET_NAME: ${GCS_BUCKET_NAME:-}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./scripts/backup:/scripts/backup:ro
+      - ./backups:/backups
+    command: >
+      sh -c "
+        apk update && apk add --no-cache bash curl &&
+        mkdir -p /var/spool/cron/crontabs /backups/logs &&
+        echo '0 2 * * * /bin/bash /scripts/backup/linux/backup.sh >> /backups/logs/cron.log 2>&1' > /var/spool/cron/crontabs/root &&
+        chmod 600 /var/spool/cron/crontabs/root &&
+        echo 'Servicio de backup standalone iniciado. Proxima ejecucion: 02:00 AM diaria.' &&
+        crond -f -l 8
+      "
+    restart: unless-stopped

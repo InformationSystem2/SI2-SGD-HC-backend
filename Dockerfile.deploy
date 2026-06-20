@@ -24,6 +24,13 @@ WORKDIR /app
 # Non-root user for security
 RUN addgroup -S spring && adduser -S spring -G spring
 
+# Instalar dependencias para scripts de backup
+RUN apk add --no-cache postgresql-client bash
+
+# Copiar scripts
+COPY --chown=spring:spring scripts/ /app/scripts/
+RUN chmod -R +x /app/scripts
+
 # Copy layers from the stages above with correct ownership
 COPY --from=layers --chown=spring:spring /extract/dependencies/ ./
 COPY --from=layers --chown=spring:spring /extract/spring-boot-loader/ ./

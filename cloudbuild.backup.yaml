@@ -1,0 +1,19 @@
+steps:
+  - name: "gcr.io/cloud-builders/docker"
+    args:
+      - "build"
+      - "--platform"
+      - "linux/amd64"
+      - "-t"
+      - "southamerica-east1-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/sgd-hc-backup-job:latest"
+      - "-f"
+      - "Dockerfile.backup"
+      - "."
+
+  - name: "gcr.io/cloud-builders/docker"
+    args:
+      - "push"
+      - "southamerica-east1-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/sgd-hc-backup-job:latest"
+
+images:
+  - "southamerica-east1-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/sgd-hc-backup-job:latest"

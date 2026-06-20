@@ -1,5 +1,7 @@
 package com.sgd_hc.tenants.service;
 
+import com.sgd_hc.audit.annotation.Auditable;
+import com.sgd_hc.audit.entity.enums.ActionType;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -7,6 +9,7 @@ import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
+import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
@@ -17,16 +20,23 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
+import com.sgd_hc.audit.service.AuditableService;
+import java.util.Map;
+
+import com.sgd_hc.tenants.dto.TenantRegistrationDataDto;
+import com.sgd_hc.tenants.mapper.TenantSessionMapper;
+
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class TenantSessionService {
+public class TenantSessionService implements AuditableService<String, TenantSessionService.SessionData> {
 
     private static final String SESSION_PREFIX = "tenant_session:";
     private static final long SESSION_TTL_MINUTES = 15;
 
     private final RedisTemplate<String, String> redisTemplate;
     private final ObjectMapper objectMapper;
+    private final TenantSessionMapper tenantSessionMapper;
 
     private ObjectMapper getSessionMapper() {
         ObjectMapper mapper = objectMapper.copy();
@@ -37,20 +47,25 @@ public class TenantSessionService {
         return mapper;
     }
 
+    @Auditable(resourceType = "TENANT_SESSION", actionType = ActionType.CREATE)
     public String createSession(String plan) {
         String token = UUID.randomUUID().toString();
         Instant expiresAt = Instant.now().plusSeconds(SESSION_TTL_MINUTES * 60);
 
         SessionData data = new SessionData(plan, expiresAt);
+        saveSession(token, data);
+        log.info("Created new tenant session with token: {}", token.substring(0, 8));
+        return token;
+    }
+
+    private void saveSession(String token, SessionData data) {
         String key = buildKey(token);
         try {
             String json = getSessionMapper().writeValueAsString(data);
             redisTemplate.opsForValue().set(key, json, Duration.ofMinutes(SESSION_TTL_MINUTES));
-            log.info("Created new tenant session with token: {}", token.substring(0, 8));
-            return token;
         } catch (JsonProcessingException e) {
             log.error("Failed to serialize session data", e);
-            throw new RuntimeException("Failed to create session", e);
+            throw new RuntimeException("Failed to save session", e);
         }
     }
 
@@ -75,19 +90,12 @@ public class TenantSessionService {
         }
     }
 
-    public void saveRegistrationData(String token, RegistrationData regData) {
-        String key = buildKey(token);
-        String json = redisTemplate.opsForValue().get(key);
-        if (json == null) return;
-
-        try {
-            SessionData data = getSessionMapper().readValue(json, SessionData.class);
+    public void saveRegistrationData(String token, TenantRegistrationDataDto regData) {
+        var opt = getSession(token);
+        if (opt.isPresent()) {
+            SessionData data = opt.get();
             data.setRegistrationData(regData);
-            Long ttl = redisTemplate.getExpire(key, TimeUnit.MINUTES);
-            long expireMinutes = ttl != null && ttl > 0 ? ttl : SESSION_TTL_MINUTES;
-            redisTemplate.opsForValue().set(key, getSessionMapper().writeValueAsString(data), Duration.ofMinutes(expireMinutes));
-        } catch (JsonProcessingException e) {
-            log.error("Failed to update session data", e);
+            saveSession(token, data);
         }
     }
 
@@ -106,10 +114,11 @@ public class TenantSessionService {
     }
 
     @Getter
+    @Setter
     public static class SessionData {
         private String plan;
-        private RegistrationData registrationData;
         private Instant expiresAt;
+        private TenantRegistrationDataDto registrationData;
 
         public SessionData() {}
 
@@ -117,38 +126,23 @@ public class TenantSessionService {
             this.plan = plan;
             this.expiresAt = expiresAt;
         }
-
-        public void setRegistrationData(RegistrationData registrationData) {
-            this.registrationData = registrationData;
-        }
     }
 
-    @Getter
-    public static class RegistrationData {
-        private String tenantName;
-        private String adminFirstName;
-        private String adminLastName;
-        private String adminEmail;
-        private String adminPassword;
-        private String adminPhone;
-        private String adminDocumentType;
-        private String adminDocumentNumber;
-        private String adminGender;
+    @Override
+    public SessionData getEntity(String id) {
+        return getSession(id).orElse(null);
+    }
 
-        public RegistrationData() {}
+    @Override
+    public Map<String, Object> toAuditMap(SessionData entity) {
+        return tenantSessionMapper.toAuditMap(entity);
+    }
 
-        public RegistrationData(String tenantName, String adminFirstName, String adminLastName,
-                               String adminEmail, String adminPassword, String adminPhone,
-                               String adminDocumentType, String adminDocumentNumber, String adminGender) {
-            this.tenantName = tenantName;
-            this.adminFirstName = adminFirstName;
-            this.adminLastName = adminLastName;
-            this.adminEmail = adminEmail;
-            this.adminPassword = adminPassword;
-            this.adminPhone = adminPhone;
-            this.adminDocumentType = adminDocumentType;
-            this.adminDocumentNumber = adminDocumentNumber;
-            this.adminGender = adminGender;
+    @Override
+    public Map<String, Object> toAuditMapFromResult(Object result) {
+        if (result instanceof String token) {
+            return getSession(token).map(this::toAuditMap).orElse(Map.of());
         }
+        return Map.of();
     }
 }

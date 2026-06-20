@@ -3,6 +3,8 @@ package com.sgd_hc.users.mapper;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.UUID;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Component;
@@ -89,4 +91,40 @@ public class UserMapper {
     private boolean canRead(Set<String> userAuthorities, String attribute) {
         return userAuthorities.contains("user:read:" + attribute);
     }
+
+    public Map<String, Object> toAuditMap(User entity) {
+        Map<String, Object> map = new LinkedHashMap<>();
+        map.put("id", entity.getId().toString());
+        map.put("username", entity.getUsername());
+        map.put("email", entity.getEmail());
+        map.put("firstName", entity.getFirstName());
+        map.put("lastName", entity.getLastName());
+        map.put("documentType", entity.getDocumentType() != null ? entity.getDocumentType().name() : null);
+        map.put("documentNumber", entity.getDocumentNumber());
+        map.put("phone", entity.getPhone());
+        map.put("gender", entity.getGender());
+        map.put("isActive", entity.getIsActive());
+        map.put("password", entity.getPassword());
+        map.put("roles", entity.getRoles() != null ? entity.getRoles().stream().map(Role::getName).collect(Collectors.toSet()) : null);
+        map.put("tenantId", entity.getTenant() != null ? entity.getTenant().getId().toString() : null);
+        map.put("createdAt", entity.getCreatedAt() != null ? entity.getCreatedAt().toString() : null);
+        map.put("updatedAt", entity.getUpdatedAt() != null ? entity.getUpdatedAt().toString() : null);
+        return map;
+    }
+
+    public Map<String, Object> toAuditMapFromDto(UserResponseDto dto) {
+        Map<String, Object> map = new LinkedHashMap<>();
+        map.put("id", dto.id().toString());
+        map.put("username", dto.username());
+        map.put("email", dto.email());
+        map.put("firstName", dto.firstName());
+        map.put("lastName", dto.lastName());
+        map.put("documentType", dto.documentType());
+        map.put("documentNumber", dto.documentNumber());
+        map.put("phone", dto.phone());
+        map.put("gender", dto.gender());
+        map.put("isActive", dto.isActive());
+        map.put("rolesIds", dto.rolesIds());
+        return map;
+    }    
 }

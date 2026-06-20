@@ -2,8 +2,13 @@ package com.sgd_hc.users.service;
 
 import java.util.HashSet;
 import java.util.Set;
+import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
+
+import com.sgd_hc.audit.annotation.Auditable;
+import com.sgd_hc.audit.entity.enums.ActionType;
+import com.sgd_hc.audit.service.AuditableService;
 
 import com.sgd_hc.security.config.tenant.TenantContext;
 
@@ -30,7 +35,7 @@ import lombok.RequiredArgsConstructor;
 
 @Service
 @RequiredArgsConstructor
-public class UserService {
+public class UserService implements AuditableService<UUID, User> {
 
     private final UserRepository        userRepository;
     private final RoleRepository        roleRepository;
@@ -39,6 +44,7 @@ public class UserService {
     private final TenantResolverService tenantResolverService;
 
     @Transactional
+    @Auditable(resourceType = "USER", actionType = ActionType.CREATE)
     public UserResponseDto createUser(UserCreateDto dto) {
         Set<String> authorities = currentAuthorities();
         validateCreateAttributePermissions(dto, authorities);
@@ -59,11 +65,13 @@ public class UserService {
     }
 
     @Transactional(readOnly = true)
+    @Auditable(resourceType = "USER", actionType = ActionType.READ, idParamName = "id")
     public UserResponseDto getUserById(UUID id) {
         return userMapper.toResponseDto(findOrThrow(id), currentAuthorities());
     }
 
     @Transactional(readOnly = true)
+    @Auditable(resourceType = "USER", actionType = ActionType.READ)
     public UserResponseDto getUserByEmail(String email) {
         return userMapper.toResponseDto(
                 userRepository.findByEmail(email)
@@ -72,6 +80,7 @@ public class UserService {
     }
 
     @Transactional(readOnly = true)
+    @Auditable(resourceType = "USER", actionType = ActionType.READ)
     public Iterable<UserResponseDto> getAllUsers() {
         Set<String> authorities = currentAuthorities();
         return userRepository.findAllRegularUsers().stream()
@@ -80,6 +89,7 @@ public class UserService {
     }
 
     @Transactional
+    @Auditable(resourceType = "USER", actionType = ActionType.UPDATE, idParamName = "id")
     public UserResponseDto updateUser(UUID id, UserUpdateDto dto) {
         Set<String> authorities = currentAuthorities();
         validateUpdateAttributePermissions(dto, authorities);
@@ -99,6 +109,7 @@ public class UserService {
     }
 
     @Transactional
+    @Auditable(resourceType = "USER", actionType = ActionType.DELETE, idParamName = "id")
     public void deleteUser(UUID id) {
         userRepository.deleteById(id);
     }
@@ -149,5 +160,15 @@ public class UserService {
             TenantContext.setBypassFilter(false);
         }
         return username;
+    }
+
+    @Override
+    public User getEntity(UUID id) {
+        return findOrThrow(id);
+    }
+
+    @Override
+    public Map<String, Object> toAuditMap(User entity) {
+        return userMapper.toAuditMap(entity);
     }
 }

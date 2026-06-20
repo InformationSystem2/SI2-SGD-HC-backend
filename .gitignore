@@ -41,6 +41,10 @@ security-test.http
 https:/
 uploads/
 
+.keys/
+
+/backups/
+
 #brayan
 archivos_contexto
 backups
