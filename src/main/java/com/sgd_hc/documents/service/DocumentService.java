@@ -3,6 +3,9 @@ package com.sgd_hc.documents.service;
 import com.sgd_hc.audit.annotation.Auditable;
 import com.sgd_hc.audit.entity.enums.ActionType;
 import com.sgd_hc.audit.service.AuditableService;
+import com.sgd_hc.workflow.entity.WorkflowEventType;
+import com.sgd_hc.workflow.service.ReviewTaskService;
+import com.sgd_hc.workflow.service.WorkflowEventService;
 import com.sgd_hc.documents.dto.DocumentRequestDto;
 import com.sgd_hc.documents.dto.DocumentResponseDto;
 import com.sgd_hc.documents.dto.DocumentUpdateDto;
@@ -58,13 +61,17 @@ public class DocumentService implements AuditableService<UUID, Document> {
     private final DocumentRepository documentRepository;
     private final DocumentTemplateRepository documentTemplateRepository;
 
-    private final PatientRepository          patientRepository;
-    private final DocumentMapper             documentMapper;
-    private final TenantResolverService      tenantResolverService;
-    private final OcrClientService          ocrClientService;
+    private final PatientRepository             patientRepository;
+    private final DocumentMapper                documentMapper;
+    private final TenantResolverService         tenantResolverService;
+    private final OcrClientService              ocrClientService;
     private final DocumentOcrMetadataRepository ocrMetadataRepository;
     private final FileStorageService        fileStorageService;
     private final PlanLimitValidator         planLimitValidator;
+    private final FileStorageService            fileStorageService;
+    private final DocumentVersioningService     documentVersioningService;
+    private final ReviewTaskService             reviewTaskService;
+    private final WorkflowEventService          workflowEventService;
 
 
     // ── Documento basado en plaantilla ────────────────────────────────────────
@@ -177,9 +184,21 @@ public class DocumentService implements AuditableService<UUID, Document> {
         requireAuthority(authorities, "document:update:status");
 
         Document doc = findOrThrow(id);
-        validateTransition(doc.getStatus(), newStatus);
+        DocumentStatus previousStatus = doc.getStatus();
+        validateTransition(previousStatus, newStatus);
         doc.setStatus(newStatus);
-        return documentMapper.toResponseDto(documentRepository.save(doc), authorities);
+        Document saved = documentRepository.save(doc);
+
+        UUID tenantId = saved.getTenant().getId();
+
+        // Cuando el autor corrige (REJECTED → DRAFT): cancelar tareas activas y registrar evento
+        if (previousStatus == DocumentStatus.REJECTED && newStatus == DocumentStatus.DRAFT) {
+            reviewTaskService.cancelTasksForDocument(id, tenantId);
+            workflowEventService.recordEvent(saved, tenantId,
+                    WorkflowEventType.DOCUMENT_CORRECTED, currentUser(), null, null);
+        }
+
+        return documentMapper.toResponseDto(saved, authorities);
     }
 
     @Transactional
@@ -197,6 +216,7 @@ public class DocumentService implements AuditableService<UUID, Document> {
         if (dto.status() != null && dto.status() != doc.getStatus()) {
             validateTransition(doc.getStatus(), dto.status());
             doc.setStatus(dto.status());
+            documentVersioningService.recordVersion(doc, currentUser().getId(), "Cambio de estado");
         }
         return documentMapper.toResponseDto(documentRepository.save(doc), authorities);
     }

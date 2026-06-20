@@ -1,0 +1,16 @@
+package com.sgd_hc.workflow.entity;
+
+public enum WorkflowEventType {
+    DOCUMENT_CREATED,
+    SENT_TO_REVIEW,
+    TASK_ASSIGNED,
+    TASK_CLAIMED,
+    COMMENT_ADDED,
+    TASK_APPROVED,
+    TASK_REJECTED,
+    TASK_CANCELLED,
+    TASK_OVERDUE,
+    DOCUMENT_FINALIZED,
+    DOCUMENT_REJECTED,
+    DOCUMENT_CORRECTED
+}
