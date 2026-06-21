@@ -1,5 +1,6 @@
 package com.sgd_hc.tenants.controller;
 
+import com.sgd_hc.security.config.tenant.TenantContext;
 import com.sgd_hc.tenants.dto.*;
 import com.sgd_hc.tenants.service.TenantService;
 import jakarta.validation.Valid;
@@ -22,6 +23,22 @@ import java.util.UUID;
 public class TenantController {
 
     private final TenantService tenantService;
+
+    /**
+     * Resuelve el slug del tenant activo para los endpoints "/current/*".
+     * Prioriza el header X-Tenant-ID (override manual, p.ej. panel superadmin),
+     * y si no viene, recurre al tenant resuelto automáticamente desde el JWT
+     * por el {@link com.sgd_hc.security.filter.JwtAuthenticationFilter}.
+     *
+     * Esto es necesario porque clientes como la app móvil no envían el header
+     * X-Tenant-ID en cada request: solo el token de autenticación.
+     */
+    private String resolveTenantSlug(String headerSlug) {
+        if (headerSlug != null && !headerSlug.isBlank()) {
+            return headerSlug;
+        }
+        return TenantContext.getCurrentTenantSlug();
+    }
 
     // ── ENDPOINTS PÚBLICOS (Onboarding) ──────────────────────────────────────
 
@@ -60,15 +77,15 @@ public class TenantController {
     @PreAuthorize("hasAnyAuthority('ROLE_ADMIN', 'ROLE_SUPERUSER')")
     public ResponseEntity<Map<String, Object>> getSettingsBySlug(
             @RequestHeader(value = "X-Tenant-ID", required = false) String tenantSlug) {
-        return ResponseEntity.ok(tenantService.getSettingsBySlug(tenantSlug));
+        return ResponseEntity.ok(tenantService.getSettingsBySlug(resolveTenantSlug(tenantSlug)));
     }
 
     @PutMapping("/current/settings")
     @PreAuthorize("hasAnyAuthority('ROLE_ADMIN', 'ROLE_SUPERUSER')")
     public ResponseEntity<Map<String, Object>> updateSettingsBySlug(
-            @RequestHeader(value = "X-Tenant-ID", required = true) String tenantSlug,
+            @RequestHeader(value = "X-Tenant-ID", required = false) String tenantSlug,
             @RequestBody Map<String, Object> settings) {
-        return ResponseEntity.ok(tenantService.updateSettingsBySlug(tenantSlug, settings));
+        return ResponseEntity.ok(tenantService.updateSettingsBySlug(resolveTenantSlug(tenantSlug), settings));
     }
 
     // ── INFORMACIÓN BÁSICA DEL TENANT (por slug) ────────────────────────────
@@ -76,23 +93,23 @@ public class TenantController {
     @GetMapping("/current/info")
     @PreAuthorize("hasAnyAuthority('ROLE_ADMIN', 'ROLE_SUPERUSER')")
     public ResponseEntity<TenantInfoDto> getTenantInfo(
-            @RequestHeader(value = "X-Tenant-ID", required = true) String tenantSlug) {
-        return ResponseEntity.ok(tenantService.getTenantInfoBySlug(tenantSlug));
+            @RequestHeader(value = "X-Tenant-ID", required = false) String tenantSlug) {
+        return ResponseEntity.ok(tenantService.getTenantInfoBySlug(resolveTenantSlug(tenantSlug)));
     }
 
     @PutMapping("/current/info")
     @PreAuthorize("hasAnyAuthority('ROLE_ADMIN', 'ROLE_SUPERUSER')")
     public ResponseEntity<TenantInfoDto> updateTenantInfo(
-            @RequestHeader(value = "X-Tenant-ID", required = true) String tenantSlug,
+            @RequestHeader(value = "X-Tenant-ID", required = false) String tenantSlug,
             @RequestBody Map<String, Object> data) {
-        return ResponseEntity.ok(tenantService.updateTenantBasicInfo(tenantSlug, data));
+        return ResponseEntity.ok(tenantService.updateTenantBasicInfo(resolveTenantSlug(tenantSlug), data));
     }
 
     @GetMapping("/current/stats")
     @PreAuthorize("hasAnyAuthority('ROLE_ADMIN', 'ROLE_SUPERUSER')")
     public ResponseEntity<TenantStatsDto> getTenantStats(
-            @RequestHeader(value = "X-Tenant-ID", required = true) String tenantSlug) {
-        return ResponseEntity.ok(tenantService.getTenantStats(tenantSlug));
+            @RequestHeader(value = "X-Tenant-ID", required = false) String tenantSlug) {
+        return ResponseEntity.ok(tenantService.getTenantStats(resolveTenantSlug(tenantSlug)));
     }
 
     // ── SUSCRIPCIÓN: Renovación y Cambio de Plan ─────────────────────────────
@@ -100,17 +117,17 @@ public class TenantController {
     @PostMapping("/current/renew")
     @PreAuthorize("hasAnyAuthority('ROLE_ADMIN', 'ROLE_SUPERUSER')")
     public ResponseEntity<RenewSubscriptionResponseDto> renewSubscription(
-            @RequestHeader(value = "X-Tenant-ID", required = true) String tenantSlug,
+            @RequestHeader(value = "X-Tenant-ID", required = false) String tenantSlug,
             @RequestBody String plan) {
-        return ResponseEntity.ok(tenantService.renewSubscription(tenantSlug, plan));
+        return ResponseEntity.ok(tenantService.renewSubscription(resolveTenantSlug(tenantSlug), plan));
     }
 
     @PostMapping("/current/change-plan")
     @PreAuthorize("hasAnyAuthority('ROLE_ADMIN', 'ROLE_SUPERUSER')")
     public ResponseEntity<ChangePlanResponseDto> changePlan(
-            @RequestHeader(value = "X-Tenant-ID", required = true) String tenantSlug,
+            @RequestHeader(value = "X-Tenant-ID", required = false) String tenantSlug,
             @RequestBody String newPlan) {
-        return ResponseEntity.ok(tenantService.changePlan(tenantSlug, newPlan));
+        return ResponseEntity.ok(tenantService.changePlan(resolveTenantSlug(tenantSlug), newPlan));
     }
 
     // ── GESTIÓN SUPERADMIN - HU-17 (Listado, Detalle, Suspensión, Eliminación) ──
