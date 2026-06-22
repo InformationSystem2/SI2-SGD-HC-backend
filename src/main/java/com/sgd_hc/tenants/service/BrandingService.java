@@ -27,6 +27,7 @@ public class BrandingService implements AuditableService<String, Map<String, Obj
     private final TenantRepository tenantRepository;
     private final ObjectMapper objectMapper;
     private final FileStorageService fileStorageService;
+    private final PlanFeatureValidator planFeatureValidator;
 
     @Transactional(readOnly = true)
     public Map<String, Object> getBrandingByTenantSlug(String slug) {
@@ -117,6 +118,9 @@ public class BrandingService implements AuditableService<String, Map<String, Obj
     public Map<String, Object> updateBrandingBySlug(String slug, Map<String, Object> brandingPayload) {
         Tenant tenant = tenantRepository.findBySlug(slug)
                 .orElseThrow(() -> new IllegalArgumentException("Tenant no encontrado: " + slug));
+
+        planFeatureValidator.checkCustomBranding(tenant.getId());
+
         Map<String, Object> settings = tenant.getSettings();
         if (settings == null) settings = new HashMap<>();
         computeDerived(brandingPayload);
@@ -132,6 +136,8 @@ public class BrandingService implements AuditableService<String, Map<String, Obj
         fileStorageService.validateLogo(file);
         Tenant t = tenantRepository.findBySlug(slug)
                 .orElseThrow(() -> new IllegalArgumentException("Tenant no encontrado: " + slug));
+
+        planFeatureValidator.checkCustomBranding(t.getId());
 
         String relativePath = fileStorageService.upload(file, "branding/" + slug);
         String url = fileStorageService.getUrl(relativePath);

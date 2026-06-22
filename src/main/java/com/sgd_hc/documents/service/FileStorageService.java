@@ -2,6 +2,9 @@ package com.sgd_hc.documents.service;
 
 import com.azure.storage.blob.BlobContainerClient;
 import com.azure.storage.blob.BlobServiceClientBuilder;
+import com.sgd_hc.tenants.entity.Tenant;
+import com.sgd_hc.tenants.service.PlanLimitValidator;
+import com.sgd_hc.tenants.service.TenantResolverService;
 import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -22,9 +25,20 @@ import java.nio.file.StandardCopyOption;
 import java.util.Set;
 import java.util.UUID;
 
+import com.azure.storage.blob.models.BlobProperties;
+
 @Slf4j
 @Service
 public class FileStorageService {
+
+    private final TenantResolverService tenantResolverService;
+    private final PlanLimitValidator planLimitValidator;
+
+    public FileStorageService(TenantResolverService tenantResolverService,
+                              PlanLimitValidator planLimitValidator) {
+        this.tenantResolverService = tenantResolverService;
+        this.planLimitValidator = planLimitValidator;
+    }
 
     @Value("${storage.upload-dir:uploads}")
     private String uploadDir;
@@ -78,6 +92,13 @@ public class FileStorageService {
             throw new IllegalArgumentException("El archivo no puede estar vacío");
         }
 
+        try {
+            Tenant tenant = tenantResolverService.resolve();
+            planLimitValidator.checkStorageLimit(tenant.getId(), file.getSize());
+        } catch (IllegalArgumentException e) {
+            // Tenant not available (e.g., during onboarding), skip validation
+        }
+
         String original = StringUtils.cleanPath(
                 file.getOriginalFilename() != null ? file.getOriginalFilename() : "file");
         String extension = original.contains(".")
@@ -108,6 +129,13 @@ public class FileStorageService {
     public String store(String filename, byte[] bytes) throws IOException {
         if (bytes == null || bytes.length == 0) {
             throw new IllegalArgumentException("El contenido del archivo no puede estar vacío");
+        }
+
+        try {
+            Tenant tenant = tenantResolverService.resolve();
+            planLimitValidator.checkStorageLimit(tenant.getId(), bytes.length);
+        } catch (IllegalArgumentException e) {
+            // Tenant not available (e.g., during onboarding), skip validation
         }
 
         if (isAzureActive()) {
@@ -261,6 +289,13 @@ public class FileStorageService {
             throw new IllegalArgumentException("Archivo vacío");
         }
 
+        try {
+            Tenant tenant = tenantResolverService.resolve();
+            planLimitValidator.checkStorageLimit(tenant.getId(), file.getSize());
+        } catch (IllegalArgumentException e) {
+            // Tenant not available (e.g., during onboarding), skip validation
+        }
+
         String original = StringUtils.cleanPath(
                 file.getOriginalFilename() != null ? file.getOriginalFilename() : "file");
         String extension = original.contains(".")
@@ -297,6 +332,36 @@ public class FileStorageService {
                     extractAccountName(), containerName, relativePath);
         }
         return "/uploads/" + relativePath;
+    }
+
+    /**
+     * Retorna el tamaño en bytes del archivo almacenado.
+     * @param relativePath ruta relativa (ej: "branding/logo.png" o "abc123.pdf")
+     * @return tamaño en bytes, o 0 si no se puede determinar
+     */
+    public long getFileSize(String relativePath) {
+        if (relativePath == null || relativePath.isBlank()) {
+            return 0;
+        }
+        if (isAzureActive()) {
+            try {
+                BlobProperties properties = blobContainerClient
+                        .getBlobClient(relativePath)
+                        .getProperties();
+                return properties.getBlobSize();
+            } catch (Exception e) {
+                log.warn(">>> FileStorage: No se pudo obtener tamaño de Azure blob '{}': {}",
+                        relativePath, e.getMessage());
+                return 0;
+            }
+        }
+        Path filePath = Paths.get(uploadDir, relativePath).toAbsolutePath().normalize();
+        try {
+            return Files.exists(filePath) ? Files.size(filePath) : 0;
+        } catch (IOException e) {
+            log.warn(">>> FileStorage: No se pudo obtener tamaño de '{}': {}", filePath, e.getMessage());
+            return 0;
+        }
     }
 
     private String extractAccountName() {

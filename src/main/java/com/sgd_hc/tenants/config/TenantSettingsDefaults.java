@@ -7,10 +7,22 @@ public final class TenantSettingsDefaults {
 
     private TenantSettingsDefaults() {}
 
-    public static final Map<String, Object> LIMITS = Map.of(
-            "maxUsers", 100,
-            "maxStorageMB", 5000,
-            "maxApiCallsPerMonth", 10000
+    public static final Map<String, Object> LIMITS = Map.ofEntries(
+            Map.entry("maxUsers", 0),
+            Map.entry("maxStorageMB", 0),
+            Map.entry("maxApiCallsPerMonth", 0),
+            Map.entry("maxPatients", 0),
+            Map.entry("maxDocuments", 0),
+            Map.entry("maxDocumentTemplates", 0),
+            Map.entry("maxReportTemplates", 0),
+            Map.entry("maxDicomStudies", 0),
+            Map.entry("maxOcrPagesPerMonth", 0),
+            Map.entry("maxBackupsPerYear", 0),
+            Map.entry("maxStaffRoles", 0),
+            Map.entry("maxActiveReviewTasks", 0),
+            Map.entry("maxReviewTasksPerMonth", 0),
+            Map.entry("maxVersionsPerDocument", 0),
+            Map.entry("maxVersionsPerMonth", 0)
     );
 
     public static final Map<String, Object> REGIONAL = Map.of(
@@ -23,7 +35,7 @@ public final class TenantSettingsDefaults {
     public static final Map<String, Object> NOTIFICATIONS = Map.of(
             "emailEnabled", true,
             "smsEnabled", false,
-            "pushEnabled", false
+            "pushEnabled", true
     );
 
     public static final Map<String, Object> SECURITY = Map.of(

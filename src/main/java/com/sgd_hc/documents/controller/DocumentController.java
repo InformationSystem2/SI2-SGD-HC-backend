@@ -131,8 +131,8 @@ public class DocumentController {
         return ResponseEntity.ok(documentService.getOcrResult(id));
     }
     /*
-    @GetMapping("/api/historiales/search")
-    public ResponseEntity<Page<DocumentResponseDto>> searchHistoriales(
+    @GetMapping("/api/records/search")
+    public ResponseEntity<Page<DocumentResponseDto>> searchHistory(
             @RequestParam(required = false) String nombre,
             @RequestParam(required = false) String nroDoc,
             @RequestParam(required = false) DocumentStatus estado,

@@ -17,5 +17,6 @@ public record OnlyofficeCallbackDto(
         String key,
         int status,
         String url,
+        String filetype,
         List<String> users
 ) {}

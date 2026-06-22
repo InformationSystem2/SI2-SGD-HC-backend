@@ -42,6 +42,7 @@ public class TenantMapper {
                 .subscriptionPlan(plan)
                 .subscriptionStatus(SubscriptionStatus.ACTIVE)
                 .subscriptionStartDate(LocalDate.now())
+                .billingCycle("MONTHLY")
                 .build();
     }
 
@@ -84,6 +85,8 @@ public class TenantMapper {
         map.put("settings", entity.getSettings());
         map.put("logoUrl", entity.getLogoUrl());
         map.put("subscriptionStartDate", entity.getSubscriptionStartDate() != null ? entity.getSubscriptionStartDate().toString() : null);
+        map.put("subscriptionEndDate", entity.getSubscriptionEndDate() != null ? entity.getSubscriptionEndDate().toString() : null);
+        map.put("billingCycle", entity.getBillingCycle());
         map.put("createdAt", entity.getCreatedAt() != null ? entity.getCreatedAt().toString() : null);
         map.put("updatedAt", entity.getUpdatedAt() != null ? entity.getUpdatedAt().toString() : null);
         return map;

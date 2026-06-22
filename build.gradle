@@ -72,11 +72,11 @@ dependencies {
     implementation 'com.stripe:stripe-java:28.3.0'
 
     implementation 'com.google.cloud:google-cloud-logging-logback:0.131.4-alpha'
+    implementation 'com.google.firebase:firebase-admin:9.2.0'
 }
 
 tasks.named('test') {
-    useJUnitPlatform()
-    enabled = false // Ignorar ejecución de tests para permitir el build sin base de datos
+	useJUnitPlatform()
 }
 
 tasks.withType(Javadoc) {

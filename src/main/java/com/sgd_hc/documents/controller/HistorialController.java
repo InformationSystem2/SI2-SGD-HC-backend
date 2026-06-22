@@ -19,7 +19,7 @@ import java.time.LocalDate;
 import org.springframework.data.domain.Sort;
 
 @RestController
-@RequestMapping("/api/historiales")
+@RequestMapping("/api/records")
 @RequiredArgsConstructor
 public class HistorialController {
 
@@ -35,7 +35,7 @@ public class HistorialController {
      * </p>
      * <p>
      * Ejemplo de llamada:
-     * {@code GET /api/historiales/search?nombre=Mart&estado=COMPLETED&page=0&size=10}
+     * {@code GET /api/records/search?nombre=Mart&estado=COMPLETED&page=0&size=10}
      * </p>
      *
      * @param nombre     (opcional) Texto parcial del nombre del paciente.

@@ -37,7 +37,8 @@ public class TenantFilterAspect {
     // Ejecuta antes de cualquier método de un repositorio Spring Data JPA que no sea del tenant
     @Around("execution(* org.springframework.data.repository.Repository+.*(..))"
             + " && !target(com.sgd_hc.tenants.repository.TenantRepository)"
-            + " && !target(com.sgd_hc.audit.repository.AuditLogRepository)")
+            + " && !target(com.sgd_hc.audit.repository.AuditLogRepository)"
+            + " && !target(com.sgd_hc.tenants.repository.PlanRepository)")
     public Object applyTenantFilter(ProceedingJoinPoint joinPoint) throws Throwable {
         
         // 1. Bypass check

@@ -44,3 +44,11 @@ uploads/
 .keys/
 
 /backups/
+
+/wrapper/
+/.gradle_home/
+test/
+
+#brayan
+archivos_contexto
+backups

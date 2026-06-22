@@ -101,5 +101,11 @@ public interface DocumentRepository extends JpaRepository<Document, UUID> {
 
     @Modifying
     @Query(value = "DELETE FROM documents WHERE tenant_id = :tenantId", nativeQuery = true)
-    void deleteAllByTenantId(@Param("tenantId") UUID tenantId);            
+    void deleteAllByTenantId(@Param("tenantId") UUID tenantId);
+
+    @Query(value = "SELECT COUNT(*) FROM documents WHERE tenant_id = :tenantId", nativeQuery = true)
+    long countByTenantId(@Param("tenantId") UUID tenantId);
+
+    @Query(value = "SELECT COALESCE(SUM(file_size_bytes), 0) FROM documents WHERE tenant_id = :tenantId", nativeQuery = true)
+    long sumFileSizeBytesByTenantId(@Param("tenantId") UUID tenantId);            
 }

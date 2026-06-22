@@ -1,5 +1,10 @@
 package com.sgd_hc.backups.service;
 
+import com.sgd_hc.backups.entity.BackupHistory;
+import com.sgd_hc.backups.repository.BackupHistoryRepository;
+import com.sgd_hc.tenants.entity.Tenant;
+import com.sgd_hc.tenants.repository.TenantRepository;
+import com.sgd_hc.tenants.service.PlanLimitValidator;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
@@ -13,6 +18,7 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Scanner;
+import java.util.UUID;
 import com.sgd_hc.audit.annotation.Auditable;
 import com.sgd_hc.audit.entity.enums.ActionType;
 import com.sgd_hc.audit.service.AuditableService;
@@ -26,6 +32,9 @@ import java.util.Map;
 public class BackupService implements AuditableService<String, File> {
 
     private final BackupMapper backupMapper;
+    private final PlanLimitValidator planLimitValidator;
+    private final BackupHistoryRepository backupHistoryRepository;
+    private final TenantRepository tenantRepository;
 
     private final boolean isWindows = System.getProperty("os.name").toLowerCase().startsWith("windows");
     private final String BACKUP_DIR = "backups";
@@ -45,12 +54,23 @@ public class BackupService implements AuditableService<String, File> {
     @Auditable(resourceType = "BACKUP_TENANT", actionType = ActionType.CREATE, idParamName = "tenantSlug")
     public File generateTenantBackup(String tenantSlug) {
         log.info("Iniciando backup manual para el tenant: {}", tenantSlug);
+
+        Tenant tenant = tenantRepository.findBySlug(tenantSlug)
+                .orElseThrow(() -> new IllegalArgumentException("Tenant no encontrado: " + tenantSlug));
+        planLimitValidator.checkBackupsLimit(tenant.getId());
+
         List<String> command = isWindows
                 ? Arrays.asList("powershell.exe", "-ExecutionPolicy", "Bypass", "-File", "scripts/backup/windows/backup.ps1", "-TenantSlug", tenantSlug)
                 : Arrays.asList("bash", "scripts/backup/linux/backup.sh", "--tenant-slug", tenantSlug);
-        
+
         executeCommand(command);
-        
+
+        BackupHistory record = new BackupHistory();
+        record.setId(UUID.randomUUID());
+        record.setTenant(tenant);
+        record.setBackupType("tenant");
+        backupHistoryRepository.save(record);
+
         return getLatestFile(BACKUP_DIR, "backup_tenant_" + tenantSlug);
     }
 

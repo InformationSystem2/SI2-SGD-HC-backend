@@ -16,6 +16,9 @@ public interface PatientRepository extends JpaRepository<Patient, UUID> {
     Optional<Patient> findByDocumentNumber(String documentNumber);
     long countByTenant(Tenant tenant);
 
+    @Query(value = "SELECT COUNT(*) FROM patients WHERE tenant_id = :tenantId", nativeQuery = true)
+    long countByTenantId(@Param("tenantId") UUID tenantId);
+
     @Modifying
     @Query(value = "DELETE FROM patients WHERE tenant_id = :tenantId", nativeQuery = true)
     void deleteAllByTenantId(@Param("tenantId") UUID tenantId);    

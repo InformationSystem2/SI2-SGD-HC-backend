@@ -3,6 +3,7 @@ package com.sgd_hc.tenants.entity;
 import com.sgd_hc.users.entity.RootEntity;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -58,6 +59,13 @@ public class Tenant extends RootEntity {
 
     @Column(nullable = false)
     private LocalDate subscriptionStartDate;
+
+    @Column(name = "subscription_end_date")
+    private LocalDate subscriptionEndDate;
+
+    @Column(name = "billing_cycle", nullable = false, length = 10)
+    @Builder.Default
+    private String billingCycle = "MONTHLY";
 
     public boolean isSuspended() {
         return subscriptionStatus == SubscriptionStatus.SUSPENDED;

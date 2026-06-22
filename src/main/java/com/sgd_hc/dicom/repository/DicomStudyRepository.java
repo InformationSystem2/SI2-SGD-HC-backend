@@ -20,4 +20,7 @@ public interface DicomStudyRepository extends JpaRepository<DicomStudy, UUID> {
 
     @Query("SELECT DISTINCT s FROM DicomStudy s LEFT JOIN FETCH s.series ORDER BY s.createdAt DESC")
     List<DicomStudy> findAllWithSeries();
+
+    @Query(value = "SELECT COUNT(*) FROM dicom_studies WHERE tenant_id = :tenantId", nativeQuery = true)
+    long countByTenantId(@Param("tenantId") UUID tenantId);
 }

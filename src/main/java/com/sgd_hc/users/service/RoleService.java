@@ -19,6 +19,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import static com.sgd_hc.security.utils.SecurityUtils.*;
+import com.sgd_hc.tenants.entity.Tenant;
+import com.sgd_hc.tenants.service.PlanLimitValidator;
 import com.sgd_hc.tenants.service.TenantResolverService;
 import com.sgd_hc.users.dto.RoleCreateDto;
 import com.sgd_hc.users.dto.RoleResponseDto;
@@ -39,6 +41,7 @@ public class RoleService implements AuditableService<Long, Role> {
     private final PermissionRepository  permissionRepository;
     private final RoleMapper            roleMapper;
     private final TenantResolverService tenantResolverService;
+    private final PlanLimitValidator    planLimitValidator;
 
     @Transactional
     @Auditable(resourceType = "ROLE", actionType = ActionType.CREATE)
@@ -46,10 +49,13 @@ public class RoleService implements AuditableService<Long, Role> {
         Set<String> authorities = currentAuthorities();
         validateCreateAttributePermissions(dto, authorities);
 
+        Tenant tenant = tenantResolverService.resolve();
+        planLimitValidator.checkStaffRolesLimit(tenant.getId());
+
         validateNameUniqueness(dto.name(), null);
         Set<Permission> permissions = fetchPermissions(dto.permissionsIds());
         Role role = roleMapper.toEntity(dto, permissions);
-        role.setTenant(tenantResolverService.resolve());
+        role.setTenant(tenant);
         return roleMapper.toResponseDto(roleRepository.save(role), authorities);
     }
 

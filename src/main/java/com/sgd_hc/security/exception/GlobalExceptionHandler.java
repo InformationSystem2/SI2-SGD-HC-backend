@@ -1,5 +1,6 @@
 package com.sgd_hc.security.exception;
 
+import jakarta.persistence.EntityNotFoundException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
@@ -56,10 +57,44 @@ public class GlobalExceptionHandler {
     }
 
 
+    @ExceptionHandler(EntityNotFoundException.class)
+    public ResponseEntity<Object> handleEntityNotFound(EntityNotFoundException ex, WebRequest request) {
+        return errorBody(HttpStatus.NOT_FOUND, "Not Found", ex.getMessage(), request);
+    }
+
     @ExceptionHandler(EmptyResultDataAccessException.class)
     public ResponseEntity<Object> handleEmptyResultDataAccessException(org.springframework.dao.EmptyResultDataAccessException ex, WebRequest request) {
         return errorBody(HttpStatus.NOT_FOUND, "Not Found",
                 "El recurso solicitado no existe o no pertenece a tu clínica.", request);
+    }
+
+    @ExceptionHandler(PlanLimitExceededException.class)
+    public ResponseEntity<Object> handlePlanLimitExceeded(PlanLimitExceededException ex, WebRequest request) {
+        request.setAttribute("auditErrorMessage", ex.getMessage(), WebRequest.SCOPE_REQUEST);
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("timestamp", LocalDateTime.now());
+        body.put("status", HttpStatus.FORBIDDEN.value());
+        body.put("error", "Plan Limit Exceeded");
+        body.put("message", ex.getMessage());
+        body.put("resourceType", ex.getResourceType());
+        body.put("currentCount", ex.getCurrentCount());
+        body.put("maxLimit", ex.getMaxLimit());
+        body.put("path", request.getDescription(false).replace("uri=", ""));
+        return new ResponseEntity<>(body, HttpStatus.FORBIDDEN);
+    }
+
+    @ExceptionHandler(PlanFeatureDisabledException.class)
+    public ResponseEntity<Object> handlePlanFeatureDisabled(PlanFeatureDisabledException ex, WebRequest request) {
+        request.setAttribute("auditErrorMessage", ex.getMessage(), WebRequest.SCOPE_REQUEST);
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("timestamp", LocalDateTime.now());
+        body.put("status", HttpStatus.FORBIDDEN.value());
+        body.put("error", "Plan Feature Disabled");
+        body.put("message", ex.getMessage());
+        body.put("featureName", ex.getFeatureName());
+        body.put("planName", ex.getPlanName());
+        body.put("path", request.getDescription(false).replace("uri=", ""));
+        return new ResponseEntity<>(body, HttpStatus.FORBIDDEN);
     }
 
     @ExceptionHandler(TenantSuspendedException.class)

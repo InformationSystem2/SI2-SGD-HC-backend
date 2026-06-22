@@ -48,4 +48,8 @@ public class DicomInstance extends BaseEntity {
     @JdbcTypeCode(SqlTypes.ARRAY)
     @Column(name = "pixel_spacing", columnDefinition = "numeric[]")
     private Double[] pixelSpacing;
+
+    @Column(name = "file_size_bytes")
+    @Builder.Default
+    private Long fileSizeBytes = 0L;
 }

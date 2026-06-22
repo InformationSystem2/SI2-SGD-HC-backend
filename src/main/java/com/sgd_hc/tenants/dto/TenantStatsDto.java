@@ -6,5 +6,13 @@ public record TenantStatsDto(
         long storageUsedMB,
         long maxStorageMB,
         long apiCallsUsed,
-        long maxApiCalls
+        long maxApiCalls,
+        long patientCount,
+        long maxPatients,
+        long documentCount,
+        long maxDocuments,
+        long dicomStudyCount,
+        long maxDicomStudies,
+        long roleCount,
+        long maxStaffRoles
 ) {}

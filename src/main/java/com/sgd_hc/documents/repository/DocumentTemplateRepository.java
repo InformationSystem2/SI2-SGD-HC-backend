@@ -38,5 +38,8 @@ public interface DocumentTemplateRepository extends JpaRepository<DocumentTempla
 
     @Modifying
     @Query(value = "DELETE FROM document_templates WHERE tenant_id = :tenantId", nativeQuery = true)
-    void deleteAllByTenantId(@Param("tenantId") UUID tenantId);    
+    void deleteAllByTenantId(@Param("tenantId") UUID tenantId);
+
+    @Query(value = "SELECT COUNT(*) FROM document_templates WHERE tenant_id = :tenantId", nativeQuery = true)
+    long countByTenantId(@Param("tenantId") UUID tenantId);    
 }

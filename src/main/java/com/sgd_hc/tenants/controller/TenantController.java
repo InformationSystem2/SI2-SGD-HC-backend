@@ -80,7 +80,6 @@ public class TenantController {
     // ── INFORMACIÓN BÁSICA DEL TENANT (por slug) ────────────────────────────
 
     @GetMapping("/current/info")
-    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN', 'ROLE_SUPERUSER')")
     public ResponseEntity<TenantInfoDto> getTenantInfo(
             @RequestHeader(value = "X-Tenant-ID", required = true) String tenantSlug) {
         return ResponseEntity.ok(tenantService.getTenantInfoBySlug(tenantSlug));
@@ -107,8 +106,10 @@ public class TenantController {
     @PreAuthorize("hasAnyAuthority('ROLE_ADMIN', 'ROLE_SUPERUSER')")
     public ResponseEntity<RenewSubscriptionResponseDto> renewSubscription(
             @RequestHeader(value = "X-Tenant-ID", required = true) String tenantSlug,
-            @Valid @RequestBody RenewSubscriptionRequestDto dto) {
-        return ResponseEntity.ok(tenantService.renewSubscription(tenantSlug, dto));
+            @RequestBody Map<String, String> body) {
+        String plan = body.get("plan");
+        String billingCycle = body.getOrDefault("billingCycle", "MONTHLY");
+        return ResponseEntity.ok(tenantService.renewSubscription(tenantSlug, plan, billingCycle));
     }
 
     @PostMapping("/current/change-plan")

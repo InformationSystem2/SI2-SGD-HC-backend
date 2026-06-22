@@ -2,6 +2,7 @@ package com.sgd_hc.security.config;
 
 import com.sgd_hc.audit.filter.AuditLogFilter;
 import com.sgd_hc.security.filter.JwtAuthenticationFilter;
+import com.sgd_hc.tenants.filter.ApiCallTrackingFilter;
 import lombok.RequiredArgsConstructor;
 
 import java.util.List;
@@ -33,6 +34,7 @@ public class SecurityConfigConfiguration {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
     private final AuditLogFilter auditLogFilter;
+    private final ApiCallTrackingFilter apiCallTrackingFilter;
 
     @Value("${app.cors.allowed-origins}")
     private List<String> allowedOrigins;
@@ -41,6 +43,8 @@ public class SecurityConfigConfiguration {
             "/api/auth/**",
             "/api/public/**",
             "/api/tenants/public/**",
+            "/api/plans",
+            "/api/plans/**",
             "/api/storage/**",
             "/api/branding",            
             "/api/documents/onlyoffice/callback",
@@ -74,7 +78,8 @@ public class SecurityConfigConfiguration {
                         })
                 )
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
-                .addFilterAfter(auditLogFilter, JwtAuthenticationFilter.class);                
+                .addFilterAfter(apiCallTrackingFilter, JwtAuthenticationFilter.class)
+                .addFilterAfter(auditLogFilter, ApiCallTrackingFilter.class);                
 
         return http.build();
     }

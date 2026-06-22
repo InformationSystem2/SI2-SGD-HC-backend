@@ -14,6 +14,7 @@ import com.sgd_hc.patients.repository.PatientRepository;
 import com.sgd_hc.security.config.tenant.TenantContext;
 import com.sgd_hc.security.details.SecurityUser;
 import com.sgd_hc.tenants.entity.Tenant;
+import com.sgd_hc.tenants.service.PlanLimitValidator;
 import com.sgd_hc.tenants.service.TenantResolverService;
 import com.sgd_hc.users.entity.User;
 import io.jsonwebtoken.Jwts;
@@ -47,6 +48,7 @@ public class OnlyofficeService {
     private final PatientRepository         patientRepository;
     private final TenantResolverService     tenantResolverService;
     private final FileStorageService        fileStorageService;
+    private final PlanLimitValidator        planLimitValidator;
 
     @Value("${onlyoffice.document-server-url:http://localhost:8088}")
     private String documentServerUrl;
@@ -62,6 +64,8 @@ public class OnlyofficeService {
     @Transactional
     public OnlyofficeSessionResponseDto createSession(OnlyofficeSessionRequestDto req) {
         Tenant  tenant   = tenantResolverService.resolve();
+        planLimitValidator.checkDocumentsLimit(tenant.getId());
+
         Patient patient  = patientRepository.findById(req.patientId())
                 .orElseThrow(() -> new EntityNotFoundException("Paciente no encontrado: " + req.patientId()));
 
@@ -179,6 +183,10 @@ public class OnlyofficeService {
                 Document doc = documentRepository.findById(docId)
                         .orElseThrow(() -> new EntityNotFoundException("Documento OO no encontrado: " + docId));
 
+                TenantContext.clear();
+                TenantContext.setCurrentTenantId(doc.getTenant().getId());
+                TenantContext.setBypassFilter(true);
+
                 // 1. Guardar la versión anterior en el historial inmutable antes de cambiar el archivo
                 UUID authorId = null;
                 if (body.users() != null && !body.users().isEmpty()) {
@@ -191,7 +199,10 @@ public class OnlyofficeService {
                 versioningService.recordVersion(doc, authorId, "Cambios guardados desde co-edición OnlyOffice");
 
                 OoDocType docType = resolveDocType(doc);
-                String filename = UUID.randomUUID() + "." + docType.fileExt;
+                String newExt = (body.filetype() != null && !body.filetype().isBlank()) 
+                                ? body.filetype() 
+                                : docType.fileExt;
+                String filename = UUID.randomUUID() + "." + newExt;
                 String relativeUrl = fileStorageService.store(filename, fileBytes);
 
                 doc.setFileUrl(relativeUrl);
@@ -218,6 +229,17 @@ public class OnlyofficeService {
         } else if (downloadUrl.contains("127.0.0.1")) {
             downloadUrl = downloadUrl.replace("127.0.0.1", "host.docker.internal");
         }
+
+        // Fix para entornos nativos (Linux) donde host.docker.internal no se resuelve automáticamente
+        if (downloadUrl.contains("host.docker.internal")) {
+            try {
+                java.net.InetAddress.getByName("host.docker.internal");
+            } catch (java.net.UnknownHostException e) {
+                // Si la máquina no lo reconoce, regresamos a localhost
+                downloadUrl = downloadUrl.replace("host.docker.internal", "localhost");
+            }
+        }
+
         return downloadUrl;
     }
 

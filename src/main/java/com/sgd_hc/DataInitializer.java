@@ -28,6 +28,7 @@ import com.sgd_hc.tenants.entity.SubscriptionPlan;
 import com.sgd_hc.tenants.entity.SubscriptionStatus;
 import com.sgd_hc.tenants.entity.Tenant;
 import com.sgd_hc.tenants.repository.TenantRepository;
+import com.sgd_hc.tenants.service.PlanService;
 import com.sgd_hc.users.entity.DocumentType;
 import com.sgd_hc.users.entity.Permission;
 import com.sgd_hc.users.entity.Role;
@@ -53,6 +54,7 @@ public class DataInitializer implements ApplicationRunner {
     private final PasswordEncoder passwordEncoder;
     private final ObjectMapper objectMapper;
     private final PatientRepository patientRepository;
+    private final PlanService planService;
 
     @Value("${app.seed.system.slug}")
     private String systemSlug;
@@ -134,7 +136,6 @@ public class DataInitializer implements ApplicationRunner {
                     role = roleRepository.findByNameAndTenantId(roleName, roleTenant.getId()).orElse(null);
                 }
 
-                // Siempre asignar todos los permisos a SUPERUSER y ADMIN
                 if (role != null && (roleName.equals("ROLE_SUPERUSER") || roleName.equals("ROLE_ADMIN"))) {
                     role.setPermissions(allPermissions);
                     roleRepository.saveAndFlush(role);
@@ -155,14 +156,12 @@ public class DataInitializer implements ApplicationRunner {
 
             log.info(">>> DataInitializer finalizado correctamente.");
         } finally {
-            // HIGIENE DE CÓDIGO: Asegurar siempre la limpieza del ThreadLocal, incluso en la inicialización
             TenantContext.clear();
         }
     }
 
 
     private Tenant setupDefaultTenant() {
-        // Tenant del sistema para superadmins (acceso global, sin filtro de tenant)
         tenantRepository.findBySlug(systemSlug).orElseGet(() -> {
             log.info(">>> Creando tenant de sistema '{}'...", systemSlug);
             return tenantRepository.saveAndFlush(Tenant.builder()
@@ -174,10 +173,11 @@ public class DataInitializer implements ApplicationRunner {
                     .subscriptionPlan(SubscriptionPlan.ENTERPRISE)
                     .subscriptionStatus(SubscriptionStatus.ACTIVE)
                     .subscriptionStartDate(LocalDate.now())
+                    .subscriptionEndDate(LocalDate.now().plusYears(100))
+                    .billingCycle("YEARLY")
                     .build());
         });
 
-        // Tenant por defecto para demo/clínica inicial
         return tenantRepository.findBySlug(defaultSlug).orElseGet(() -> {
             log.info(">>> Creando tenant por defecto '{}'...", defaultSlug);
             Map<String, Object> settings = new HashMap<>();
@@ -199,6 +199,8 @@ public class DataInitializer implements ApplicationRunner {
                     .subscriptionPlan(SubscriptionPlan.PRO)
                     .subscriptionStatus(SubscriptionStatus.ACTIVE)
                     .subscriptionStartDate(LocalDate.now())
+                    .subscriptionEndDate(LocalDate.now().plusDays(30))
+                    .billingCycle("MONTHLY")
                     .settings(settings)
                     .build());
         });
@@ -216,6 +218,8 @@ public class DataInitializer implements ApplicationRunner {
                     .subscriptionPlan(SubscriptionPlan.PRO)
                     .subscriptionStatus(SubscriptionStatus.ACTIVE)
                     .subscriptionStartDate(LocalDate.now())
+                    .subscriptionEndDate(LocalDate.now().plusDays(30))
+                    .billingCycle("MONTHLY")
                     .build());
         });
     }
@@ -294,29 +298,30 @@ public class DataInitializer implements ApplicationRunner {
         log.info(">>> Creando 13 clínicas extra para los gráficos del Dashboard...");
         Faker faker = new Faker(new Locale("es"));
         SubscriptionPlan[] planes = SubscriptionPlan.values();
-        SubscriptionStatus[] estados = SubscriptionStatus.values();
+        SubscriptionStatus[] estados = {SubscriptionStatus.ACTIVE, SubscriptionStatus.PAST_DUE, SubscriptionStatus.PENDING_PAYMENT};
 
         for (int i = 1; i <= 13; i++) {
             String slug = "clinica-extra-" + i;
             Tenant extraTenant = tenantRepository.findBySlug(slug).orElseGet(() -> {
+                SubscriptionPlan plan = planes[faker.random().nextInt(planes.length)];
                 return tenantRepository.saveAndFlush(Tenant.builder()
                         .name(faker.company().name())
                         .slug(slug)
                         .email("admin@" + slug + ".com")
                         .phone(faker.phoneNumber().cellPhone())
                         .address(faker.address().fullAddress())
-                        .subscriptionPlan(planes[faker.random().nextInt(planes.length)])
+                        .subscriptionPlan(plan)
                         .subscriptionStatus(estados[faker.random().nextInt(estados.length)])
                         .subscriptionStartDate(LocalDate.now().minusDays(faker.random().nextInt(1, 100)))
+                        .subscriptionEndDate(LocalDate.now().plusDays(faker.random().nextInt(5, 60)))
+                        .billingCycle("MONTHLY")
                         .build());
             });
 
-            // Creamos un admin real para esta clínica
             setupUser("admin." + slug, "admin@" + slug + ".com", "Admin", "Clínica " + i,
                     "admin123", DocumentType.CI, String.valueOf(faker.number().randomNumber(7, true)),
                     adminRole, extraTenant);
 
-            // Sembrar pacientes reales (Spring Boot se encarga de crear 50)
             seedPatients(extraTenant);
         }
     }

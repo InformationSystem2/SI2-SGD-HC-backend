@@ -21,6 +21,7 @@ public record TenantDetailDto(
         SubscriptionStatus subscriptionStatus,
         LocalDate subscriptionStartDate,
         LocalDate subscriptionEndDate,
+        String billingCycle,
         Map<String, Object> settings,
         AdminInfoDto admin,
         TenantStatsDto stats,

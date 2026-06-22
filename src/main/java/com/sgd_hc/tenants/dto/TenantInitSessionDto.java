@@ -7,5 +7,6 @@ import jakarta.validation.constraints.NotBlank;
  * Devuelve un sessionToken que se usará en los siguientes pasos.
  */
 public record TenantInitSessionDto(
-        @NotBlank String selectedPlan
+        @NotBlank String selectedPlan,
+        String billingCycle
 ) {}

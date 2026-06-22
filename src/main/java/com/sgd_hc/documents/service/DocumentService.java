@@ -3,6 +3,9 @@ package com.sgd_hc.documents.service;
 import com.sgd_hc.audit.annotation.Auditable;
 import com.sgd_hc.audit.entity.enums.ActionType;
 import com.sgd_hc.audit.service.AuditableService;
+import com.sgd_hc.workflow.entity.WorkflowEventType;
+import com.sgd_hc.workflow.service.ReviewTaskService;
+import com.sgd_hc.workflow.service.WorkflowEventService;
 import com.sgd_hc.documents.dto.DocumentRequestDto;
 import com.sgd_hc.documents.dto.DocumentResponseDto;
 import com.sgd_hc.documents.dto.DocumentUpdateDto;
@@ -17,6 +20,8 @@ import com.sgd_hc.patients.entity.Patient;
 import com.sgd_hc.patients.repository.PatientRepository;
 import com.sgd_hc.security.details.SecurityUser;
 import com.sgd_hc.tenants.entity.Tenant;
+import com.sgd_hc.tenants.service.PlanFeatureValidator;
+import com.sgd_hc.tenants.service.PlanLimitValidator;
 import com.sgd_hc.tenants.service.TenantResolverService;
 import com.sgd_hc.users.entity.User;
 import static com.sgd_hc.security.utils.SecurityUtils.*;
@@ -57,12 +62,17 @@ public class DocumentService implements AuditableService<UUID, Document> {
     private final DocumentRepository documentRepository;
     private final DocumentTemplateRepository documentTemplateRepository;
 
-    private final PatientRepository          patientRepository;
-    private final DocumentMapper             documentMapper;
-    private final TenantResolverService      tenantResolverService;
-    private final OcrClientService          ocrClientService;
+    private final PatientRepository             patientRepository;
+    private final DocumentMapper                documentMapper;
+    private final TenantResolverService         tenantResolverService;
+    private final OcrClientService              ocrClientService;
     private final DocumentOcrMetadataRepository ocrMetadataRepository;
     private final FileStorageService        fileStorageService;
+    private final PlanLimitValidator         planLimitValidator;
+    private final PlanFeatureValidator       planFeatureValidator;
+    private final DocumentVersioningService     documentVersioningService;
+    private final ReviewTaskService             reviewTaskService;
+    private final WorkflowEventService          workflowEventService;
 
 
     // ── Documento basado en plaantilla ────────────────────────────────────────
@@ -74,6 +84,7 @@ public class DocumentService implements AuditableService<UUID, Document> {
         validateCreateAttributePermissions(dto, authorities);
 
         Tenant tenant = tenantResolverService.resolve();
+        planLimitValidator.checkDocumentsLimit(tenant.getId());
 
         Patient patient = patientRepository.findById(dto.patientId())
                 .orElseThrow(() -> new EntityNotFoundException(
@@ -98,6 +109,7 @@ public class DocumentService implements AuditableService<UUID, Document> {
         validateCreateExternalAttributePermissions(dto, authorities);
 
         Tenant tenant = tenantResolverService.resolve();
+        planLimitValidator.checkDocumentsLimit(tenant.getId());
 
         Patient patient = patientRepository.findById(dto.patientId())
                 .orElseThrow(() -> new EntityNotFoundException(
@@ -109,6 +121,8 @@ public class DocumentService implements AuditableService<UUID, Document> {
         doc.setUploader(currentUser());
         doc.setTemplate(null);
         doc.setFileUrl(dto.fileUrl());
+        doc.setFileSizeBytes(fileStorageService.getFileSize(
+                dto.fileUrl() != null ? dto.fileUrl().replaceFirst("^/uploads/", "") : ""));
         doc.setIssueDate(dto.issueDate());
         doc.setIsExternalSource(true);
         doc.setStatus(DocumentStatus.DRAFT);
@@ -171,9 +185,54 @@ public class DocumentService implements AuditableService<UUID, Document> {
         requireAuthority(authorities, "document:update:status");
 
         Document doc = findOrThrow(id);
-        validateTransition(doc.getStatus(), newStatus);
+        DocumentStatus previousStatus = doc.getStatus();
+        validateTransition(previousStatus, newStatus);
         doc.setStatus(newStatus);
-        return documentMapper.toResponseDto(documentRepository.save(doc), authorities);
+        Document saved = documentRepository.save(doc);
+
+        UUID tenantId = saved.getTenant().getId();
+
+        // DRAFT → PENDING_REVIEW: cancelar tareas previas y registrar evento
+        if (previousStatus == DocumentStatus.DRAFT && newStatus == DocumentStatus.PENDING_REVIEW) {
+            reviewTaskService.cancelTasksForDocument(id, tenantId);
+            documentVersioningService.recordVersion(doc, currentUser().getId(), "Enviado a revisión");
+            workflowEventService.recordEvent(saved, tenantId,
+                    WorkflowEventType.SENT_TO_REVIEW, currentUser(), null, null);
+        }
+        // PENDING_REVIEW → FINALIZED: cancelar tareas y registrar eventos
+        else if (previousStatus == DocumentStatus.PENDING_REVIEW && newStatus == DocumentStatus.FINALIZED) {
+            reviewTaskService.cancelTasksForDocument(id, tenantId);
+            documentVersioningService.recordVersion(doc, currentUser().getId(), "Aprobado y finalizado");
+            workflowEventService.recordEvent(saved, tenantId,
+                    WorkflowEventType.TASK_APPROVED, currentUser(), null, null);
+            workflowEventService.recordEvent(saved, tenantId,
+                    WorkflowEventType.DOCUMENT_FINALIZED, currentUser(), null, null);
+        }
+        // PENDING_REVIEW → REJECTED: cancelar tareas y registrar eventos
+        else if (previousStatus == DocumentStatus.PENDING_REVIEW && newStatus == DocumentStatus.REJECTED) {
+            reviewTaskService.cancelTasksForDocument(id, tenantId);
+            documentVersioningService.recordVersion(doc, currentUser().getId(), "Rechazado");
+            workflowEventService.recordEvent(saved, tenantId,
+                    WorkflowEventType.TASK_REJECTED, currentUser(), null, null);
+            workflowEventService.recordEvent(saved, tenantId,
+                    WorkflowEventType.DOCUMENT_REJECTED, currentUser(), null, null);
+        }
+        // REJECTED → DRAFT: cancelar tareas activas y registrar evento
+        else if (previousStatus == DocumentStatus.REJECTED && newStatus == DocumentStatus.DRAFT) {
+            reviewTaskService.cancelTasksForDocument(id, tenantId);
+            documentVersioningService.recordVersion(doc, currentUser().getId(), "Corregido - vuelta a borrador");
+            workflowEventService.recordEvent(saved, tenantId,
+                    WorkflowEventType.DOCUMENT_CORRECTED, currentUser(), null, null);
+        }
+        // REJECTED → PENDING_REVIEW: cancelar tareas viejas y reenviar
+        else if (previousStatus == DocumentStatus.REJECTED && newStatus == DocumentStatus.PENDING_REVIEW) {
+            reviewTaskService.cancelTasksForDocument(id, tenantId);
+            documentVersioningService.recordVersion(doc, currentUser().getId(), "Reenviado a revisión");
+            workflowEventService.recordEvent(saved, tenantId,
+                    WorkflowEventType.SENT_TO_REVIEW, currentUser(), null, null);
+        }
+
+        return documentMapper.toResponseDto(saved, authorities);
     }
 
     @Transactional
@@ -191,6 +250,7 @@ public class DocumentService implements AuditableService<UUID, Document> {
         if (dto.status() != null && dto.status() != doc.getStatus()) {
             validateTransition(doc.getStatus(), dto.status());
             doc.setStatus(dto.status());
+            documentVersioningService.recordVersion(doc, currentUser().getId(), "Cambio de estado");
         }
         return documentMapper.toResponseDto(documentRepository.save(doc), authorities);
     }
@@ -257,6 +317,9 @@ public class DocumentService implements AuditableService<UUID, Document> {
     @Auditable(resourceType = "DOCUMENT", actionType = ActionType.CREATE, idParamName = "documentId")
     public OcrResultDto processOcr(UUID documentId) {
         Document doc = findOrThrow(documentId);
+
+        planFeatureValidator.checkOcrScanning(doc.getTenant().getId());
+        planLimitValidator.checkOcrPagesLimit(doc.getTenant().getId());
 
         if (doc.getFileUrl() == null || doc.getFileUrl().isBlank())
             throw new IllegalStateException("El documento no tiene archivo físico para procesar");
