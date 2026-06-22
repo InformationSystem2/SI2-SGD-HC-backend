@@ -11,6 +11,6 @@ public record OnlyofficeSessionResponseDto(
         String emptyDocUrl,
         String callbackUrl,
         String configToken,     // JWT firmado con el secreto compartido con OO DS
-        String fileType,        // docx | xlsx | pptx
+        String fileType,        // docx | xlsx | pptx | pdf
         String ooDocumentType   // word | cell | slide
 ) {}
