@@ -370,11 +370,9 @@ public class TenantService implements AuditableService<Object, Tenant> {
                     ? tenant.getSubscriptionPlan().name()
                     : "BASIC";
             Map<String, Object> defaults = TenantSettingsDefaults.getAllDefaults();
-            Map<String, Object> planLimits = new HashMap<>();
-            planLimits.put("maxUsers", planService.getLimitOrDefault(planName, "maxUsers", 0L));
-            planLimits.put("maxStorageMB", planService.getLimitOrDefault(planName, "maxStorageMB", 0L));
-            planLimits.put("maxApiCallsPerMonth", planService.getLimitOrDefault(planName, "maxApiCallsPerMonth", 0L));
-            defaults.put("limits", planLimits);
+            Map<String, Long> planLimits = planService.getLimitsForPlan(planName);
+            Map<String, Object> planLimitsObj = new HashMap<>(planLimits);
+            defaults.put("limits", planLimitsObj);
             return defaults;
         }
         return TenantSettingsDefaults.mergeWithDefaults(settings);

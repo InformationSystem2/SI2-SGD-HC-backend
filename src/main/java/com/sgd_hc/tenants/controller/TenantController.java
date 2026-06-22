@@ -74,7 +74,6 @@ public class TenantController {
     // ── INFORMACIÓN BÁSICA DEL TENANT (por slug) ────────────────────────────
 
     @GetMapping("/current/info")
-    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN', 'ROLE_SUPERUSER')")
     public ResponseEntity<TenantInfoDto> getTenantInfo(
             @RequestHeader(value = "X-Tenant-ID", required = true) String tenantSlug) {
         return ResponseEntity.ok(tenantService.getTenantInfoBySlug(tenantSlug));
