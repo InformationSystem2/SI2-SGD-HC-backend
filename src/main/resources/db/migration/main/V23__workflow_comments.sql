@@ -1,3 +1,7 @@
+-- =============================================================================
+-- V28 — WORKFLOW_COMMENTS: comentarios en el hilo de revisión
+-- =============================================================================
+
 CREATE TABLE workflow_comments (
     id             UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id      UUID        NOT NULL,

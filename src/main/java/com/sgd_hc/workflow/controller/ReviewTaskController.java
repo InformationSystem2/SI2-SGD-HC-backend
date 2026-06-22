@@ -12,6 +12,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @RestController
@@ -50,9 +51,21 @@ public class ReviewTaskController {
         return ResponseEntity.ok(reviewTaskService.getMyTasks());
     }
 
+    @GetMapping("/delegated-tasks")
+    @PreAuthorize("hasAuthority('review-task:read')")
+    public ResponseEntity<List<ReviewTaskResponseDto>> getMyDelegatedTasks() {
+        return ResponseEntity.ok(reviewTaskService.getMyDelegatedTasks());
+    }
+
     @GetMapping("/document/{docId}")
     @PreAuthorize("hasAuthority('review-task:read')")
     public ResponseEntity<List<ReviewTaskResponseDto>> getTasksByDocument(@PathVariable UUID docId) {
         return ResponseEntity.ok(reviewTaskService.getTasksByDocument(docId));
+    }
+
+    @GetMapping("/stats")
+    @PreAuthorize("hasAuthority('review-task:read')")
+    public ResponseEntity<Map<String, Object>> getStats() {
+        return ResponseEntity.ok(reviewTaskService.getStats());
     }
 }

@@ -1,3 +1,7 @@
+-- =============================================================================
+-- V30 — USER_PUSH_TOKENS: tokens de dispositivos para notificaciones push
+-- =============================================================================
+
 CREATE TABLE user_push_tokens (
     id           UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id      UUID        NOT NULL,

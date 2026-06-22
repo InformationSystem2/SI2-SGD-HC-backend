@@ -35,6 +35,11 @@ public class ReviewTask {
     @Column(name = "tenant_id", nullable = false, updatable = false)
     private UUID tenantId;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "workflow_id",
+            foreignKey = @ForeignKey(name = "fk_review_tasks_workflow"))
+    private Workflow workflow;
+
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "document_id", nullable = false, updatable = false,
             foreignKey = @ForeignKey(name = "fk_review_tasks_document"))
@@ -53,6 +58,9 @@ public class ReviewTask {
     @Enumerated(EnumType.STRING)
     @Column(name = "outcome", length = 20)
     private ReviewTaskOutcome outcome;
+
+    @Column(name = "document_version")
+    private Integer documentVersion;
 
     @Column(name = "priority", nullable = false)
     @Builder.Default

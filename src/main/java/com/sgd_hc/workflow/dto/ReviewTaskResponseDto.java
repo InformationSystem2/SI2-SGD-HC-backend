@@ -8,9 +8,11 @@ import java.util.UUID;
 
 public record ReviewTaskResponseDto(
         UUID id,
+        UUID workflowId,
         UUID documentId,
         UUID assignedToId,
         String assignedToName,
+        Integer documentVersion,
         ReviewTaskStatus status,
         ReviewTaskOutcome outcome,
         Integer priority,

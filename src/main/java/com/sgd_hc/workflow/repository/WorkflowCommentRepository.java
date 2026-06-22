@@ -11,4 +11,5 @@ import java.util.UUID;
 public interface WorkflowCommentRepository extends JpaRepository<WorkflowComment, UUID> {
 
     List<WorkflowComment> findByDocumentIdAndTenantIdOrderByCreatedAtAsc(UUID documentId, UUID tenantId);
+    List<WorkflowComment> findByWorkflowIdAndTenantIdOrderByCreatedAtAsc(UUID workflowId, UUID tenantId);
 }

@@ -35,8 +35,8 @@ public class WorkflowComment {
     @Column(name = "tenant_id", nullable = false, updatable = false)
     private UUID tenantId;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "document_id", nullable = false, updatable = false,
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "document_id", updatable = false,
             foreignKey = @ForeignKey(name = "fk_workflow_comments_document"))
     private Document document;
 
@@ -44,6 +44,11 @@ public class WorkflowComment {
     @JoinColumn(name = "review_task_id",
             foreignKey = @ForeignKey(name = "fk_workflow_comments_review_task"))
     private ReviewTask reviewTask;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "workflow_id",
+            foreignKey = @ForeignKey(name = "fk_workflow_comments_workflow"))
+    private Workflow workflow;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "author_id", nullable = false, updatable = false,

@@ -1,3 +1,7 @@
+-- =============================================================================
+-- V29 — NOTIFICATIONS: notificaciones in-app, email y push
+-- =============================================================================
+
 CREATE TABLE notifications (
     id             UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id      UUID         NOT NULL,

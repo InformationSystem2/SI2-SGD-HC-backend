@@ -11,4 +11,6 @@ import java.util.UUID;
 public interface WorkflowEventRepository extends JpaRepository<WorkflowEvent, UUID> {
 
     List<WorkflowEvent> findByDocumentIdAndTenantIdOrderByPerformedAtAsc(UUID documentId, UUID tenantId);
+
+    List<WorkflowEvent> findByWorkflowIdOrderByPerformedAtAsc(UUID workflowId);
 }

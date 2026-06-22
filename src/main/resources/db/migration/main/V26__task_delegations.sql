@@ -1,3 +1,7 @@
+-- =============================================================================
+-- V31 — TASK_DELEGATIONS: delegación de tareas a otro usuario
+-- =============================================================================
+
 CREATE TABLE task_delegations (
     id           UUID    PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id    UUID    NOT NULL,
@@ -14,4 +18,4 @@ CREATE TABLE task_delegations (
 );
 
 CREATE INDEX idx_task_delegations_delegator ON task_delegations(delegator_id, is_active);
-CREATE INDEX idx_task_delegations_delegate  ON task_delegations(delegate_id,  is_active);
+CREATE INDEX idx_task_delegations_delegate  ON task_delegations(delegate_id, is_active);

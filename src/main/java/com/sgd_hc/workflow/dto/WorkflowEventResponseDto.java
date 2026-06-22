@@ -12,5 +12,9 @@ public record WorkflowEventResponseDto(
         UUID performedById,
         String performedByName,
         OffsetDateTime performedAt,
-        Map<String, Object> detailsJson
+        Map<String, Object> detailsJson,
+        String result,
+        String comment,
+        UUID documentId,
+        String documentName
 ) {}

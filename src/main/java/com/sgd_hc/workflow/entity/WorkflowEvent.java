@@ -39,8 +39,13 @@ public class WorkflowEvent {
     @Column(name = "tenant_id", nullable = false, updatable = false)
     private UUID tenantId;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "document_id", nullable = false, updatable = false,
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "workflow_id",
+            foreignKey = @ForeignKey(name = "fk_workflow_events_workflow"))
+    private Workflow workflow;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "document_id",
             foreignKey = @ForeignKey(name = "fk_workflow_events_document"))
     private Document document;
 
@@ -61,6 +66,12 @@ public class WorkflowEvent {
     @Column(name = "performed_at", nullable = false, updatable = false)
     @Builder.Default
     private OffsetDateTime performedAt = OffsetDateTime.now();
+
+    @Column(name = "result", length = 50)
+    private String result;
+
+    @Column(name = "comment", columnDefinition = "TEXT")
+    private String comment;
 
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "details_json", columnDefinition = "jsonb", updatable = false)
