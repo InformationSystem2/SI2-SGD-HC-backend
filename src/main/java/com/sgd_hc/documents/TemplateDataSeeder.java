@@ -11,6 +11,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -42,9 +43,16 @@ public class TemplateDataSeeder {
     @Value("${app.seed.default.slug:default}")
     private String defaultTenantSlug;
 
+    @Value("${app.seed.enabled:true}")
+    private boolean seedEnabled;
+
     @EventListener(ApplicationReadyEvent.class)
     @Transactional
     public void seedTemplates() {
+        if (!seedEnabled) {
+            log.info(">>> TemplateDataSeeder: sembrado en arranque desactivado (app.seed.enabled=false).");
+            return;
+        }
         log.info(">>> TemplateDataSeeder: verificando plantillas predefinidas...");
         TenantContext.setBypassFilter(true);
 

@@ -104,7 +104,8 @@ public class DataInitializer implements ApplicationRunner {
 
             Set<Permission> allPermissions = new HashSet<>(permissionRepository.findAll());
 
-            Map<String, String> rolesToCreate = Map.of(
+            // 1. Crear roles para el tenant del sistema (hqCoreTenant)
+            Map<String, String> systemRoles = Map.of(
                     "ROLE_SUPERUSER", "Superusuario con acceso total",
                     "ROLE_ADMIN", "Administrador con restricciones de borrado",
                     "ROLE_MEDICO", "Personal médico del sistema",
@@ -112,47 +113,41 @@ public class DataInitializer implements ApplicationRunner {
                     "ROLE_DIRECTOR", "Director del hospital"
             );
 
-            for (Map.Entry<String, String> entry : rolesToCreate.entrySet()) {
+            for (Map.Entry<String, String> entry : systemRoles.entrySet()) {
                 String roleName = entry.getKey();
                 String roleDesc = entry.getValue();
 
-                Tenant roleTenant = hqCoreTenant;
-
-                boolean exists = roleRepository.findByNameAndTenantId(roleName, roleTenant.getId()).isPresent();
+                boolean exists = roleRepository.findByNameAndTenantId(roleName, hqCoreTenant.getId()).isPresent();
                 Role role;
                 if (!exists) {
-                    log.info(">>> Creando rol: {} en tenant: {}", roleName, roleTenant.getSlug());
-                    try {
-                        role = roleRepository.saveAndFlush(Role.builder()
-                                .name(roleName)
-                                .description(roleDesc)
-                                .tenant(roleTenant)
-                                .build());
-                    } catch (Exception e) {
-                        log.warn(">>> Conflicto al crear rol {}: {}", roleName, e.getMessage());
-                        role = roleRepository.findByNameAndTenantId(roleName, roleTenant.getId()).orElse(null);
-                    }
-                } else {
-                    role = roleRepository.findByNameAndTenantId(roleName, roleTenant.getId()).orElse(null);
-                }
-
-                if (role != null && (roleName.equals("ROLE_SUPERUSER") || roleName.equals("ROLE_ADMIN"))) {
-                    role.setPermissions(allPermissions);
+                    log.info(">>> Creando rol del sistema: {} en tenant: {}", roleName, hqCoreTenant.getSlug());
+                    role = Role.builder()
+                            .name(roleName)
+                            .description(roleDesc)
+                            .tenant(hqCoreTenant)
+                            .permissions(roleName.equals("ROLE_SUPERUSER") || roleName.equals("ROLE_ADMIN") ? allPermissions : new HashSet<>())
+                            .build();
                     roleRepository.saveAndFlush(role);
-                    log.info(">>> permisos actualizados para rol: {}", roleName);
+                } else {
+                    role = roleRepository.findByNameAndTenantId(roleName, hqCoreTenant.getId()).orElse(null);
+                    if (role != null && (roleName.equals("ROLE_SUPERUSER") || roleName.equals("ROLE_ADMIN"))) {
+                        role.setPermissions(allPermissions);
+                        roleRepository.saveAndFlush(role);
+                    }
                 }
             }
 
-            Role superuserRole = roleRepository.findByNameAndTenantId("ROLE_SUPERUSER", hqCoreTenant.getId()).orElseThrow();
-            Role adminRole = roleRepository.findByNameAndTenantId("ROLE_ADMIN", hqCoreTenant.getId()).orElseThrow();
+            // 2. Crear roles específicos para los demás tenants principales
+            seedRolesForTenant(defaultTenant, allPermissions);
+            seedRolesForTenant(secondTenant, allPermissions);
 
-            setupUser(systemUsername, systemEmail, systemFirstName, systemLastName, systemPassword, DocumentType.CI, systemNationalId, superuserRole, hqCoreTenant);
-            setupUser(defaultUsername, defaultEmail, defaultFirstName, defaultLastName, defaultPassword, DocumentType.CI, defaultNationalId, adminRole, defaultTenant);
-            setupUser("admin.sur", "admin@clinicasur.com", "Admin", "Sur", "admin123", DocumentType.CI, "2222222", adminRole, secondTenant);
+            setupUser(systemUsername, systemEmail, systemFirstName, systemLastName, systemPassword, DocumentType.CI, systemNationalId, "ROLE_SUPERUSER", hqCoreTenant);
+            setupUser(defaultUsername, defaultEmail, defaultFirstName, defaultLastName, defaultPassword, DocumentType.CI, defaultNationalId, "ROLE_ADMIN", defaultTenant);
+            setupUser("admin.sur", "admin@clinicasur.com", "Admin", "Sur", "admin123", DocumentType.CI, "2222222", "ROLE_ADMIN", secondTenant);
 
             seedPatients(defaultTenant);
             seedPatients(secondTenant);
-            setupExtraTenants(adminRole);
+            setupExtraTenants(allPermissions);
 
             log.info(">>> DataInitializer finalizado correctamente.");
         } finally {
@@ -224,9 +219,38 @@ public class DataInitializer implements ApplicationRunner {
         });
     }
 
+    private void seedRolesForTenant(Tenant tenant, Set<Permission> allPermissions) {
+        Map<String, String> rolesToCreate = Map.of(
+                "ROLE_ADMIN", "Administrador de la clínica",
+                "ROLE_MEDICO", "Personal médico del sistema",
+                "ROLE_ARCHIVO", "Encargado de archivo histórico",
+                "ROLE_DIRECTOR", "Director del hospital"
+        );
+
+        for (Map.Entry<String, String> entry : rolesToCreate.entrySet()) {
+            String roleName = entry.getKey();
+            String roleDesc = entry.getValue();
+
+            boolean exists = roleRepository.findByNameAndTenantId(roleName, tenant.getId()).isPresent();
+            if (!exists) {
+                log.info(">>> Creando rol: {} en tenant: {}", roleName, tenant.getSlug());
+                Role role = Role.builder()
+                        .name(roleName)
+                        .description(roleDesc)
+                        .tenant(tenant)
+                        .permissions(roleName.equals("ROLE_ADMIN") ? allPermissions : new HashSet<>())
+                        .build();
+                roleRepository.saveAndFlush(role);
+            }
+        }
+    }
+
     private void setupUser(String username, String email, String first, String last,
                            String pass, DocumentType docType, String docNum,
-                           Role role, Tenant tenant) {
+                           String roleName, Tenant tenant) {
+        Role role = roleRepository.findByNameAndTenantId(roleName, tenant.getId())
+                .orElseThrow(() -> new IllegalStateException("Rol " + roleName + " no encontrado para tenant " + tenant.getSlug()));
+
         User user = userRepository.findByUsername(username).orElse(null);
         if (user != null) {
             log.info(">>> Actualizando usuario: {}", username);
@@ -294,7 +318,7 @@ public class DataInitializer implements ApplicationRunner {
         log.info(">>> Seed de pacientes completado para tenant '{}'.", tenant.getSlug());
     }
 
-    private void setupExtraTenants(Role adminRole) {
+    private void setupExtraTenants(Set<Permission> allPermissions) {
         log.info(">>> Creando 13 clínicas extra para los gráficos del Dashboard...");
         Faker faker = new Faker(new Locale("es"));
         SubscriptionPlan[] planes = SubscriptionPlan.values();
@@ -318,9 +342,12 @@ public class DataInitializer implements ApplicationRunner {
                         .build());
             });
 
+            // Crear roles para esta clínica extra
+            seedRolesForTenant(extraTenant, allPermissions);
+
             setupUser("admin." + slug, "admin@" + slug + ".com", "Admin", "Clínica " + i,
                     "admin123", DocumentType.CI, String.valueOf(faker.number().randomNumber(7, true)),
-                    adminRole, extraTenant);
+                    "ROLE_ADMIN", extraTenant);
 
             seedPatients(extraTenant);
         }

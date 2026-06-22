@@ -11,6 +11,7 @@ import com.sgd_hc.tenants.repository.TenantRepository;
 import com.sgd_hc.tenants.utils.TagSlugGenerator;
 import com.sgd_hc.users.entity.Role;
 import com.sgd_hc.users.entity.User;
+import com.sgd_hc.users.entity.Permission;
 
 import com.stripe.model.PaymentIntent;
 import com.stripe.param.PaymentIntentCreateParams;
@@ -18,8 +19,10 @@ import com.stripe.exception.StripeException;
 
 import com.sgd_hc.users.repository.RoleRepository;
 import com.sgd_hc.users.repository.UserRepository;
+import com.sgd_hc.users.repository.PermissionRepository;
 import com.sgd_hc.documents.repository.DocumentRepository;
 import com.sgd_hc.documents.repository.DocumentTemplateRepository;
+import com.sgd_hc.documents.TemplateDataSeeder;
 import com.sgd_hc.patients.repository.PatientRepository;
 import com.sgd_hc.dicom.repository.DicomStudyRepository;
 import com.sgd_hc.dicom.repository.DicomInstanceRepository;
@@ -67,6 +70,7 @@ public class TenantService implements AuditableService<Object, Tenant> {
     private final TenantRepository tenantRepository;
     private final RoleRepository roleRepository;
     private final UserRepository userRepository;
+    private final PermissionRepository permissionRepository;
     private final DocumentRepository documentRepository;
     private final DocumentTemplateRepository documentTemplateRepository;
     private final PatientRepository patientRepository;
@@ -77,6 +81,7 @@ public class TenantService implements AuditableService<Object, Tenant> {
     private final PlanService planService;
     private final ObjectMapper objectMapper;
     private final TenantMapper tenantMapper;
+    private final TemplateDataSeeder templateDataSeeder;
 
     private final PasswordEncoder passwordEncoder;
     private final RedisTemplate<String, String> redisTemplate;
@@ -187,6 +192,75 @@ public class TenantService implements AuditableService<Object, Tenant> {
         }
     }
 
+    public PaymentIntentResponseDto createOnboardingPaymentIntent(PaymentIntentRequestDto dto) {
+        TenantSessionService.SessionData session = sessionService.getSession(dto.sessionToken())
+                .orElseThrow(() -> new IllegalArgumentException("Sesión de registro no válida o expirada"));
+
+        PlanDto planDto = planService.getPlanByName(session.getPlan());
+        boolean isYearly = "YEARLY".equalsIgnoreCase(session.getBillingCycle());
+        java.math.BigDecimal price = isYearly ? planDto.priceYearly() : planDto.priceMonthly();
+        long amount = price.multiply(new java.math.BigDecimal(100)).longValue();
+
+        if (amount <= 0) {
+            return new PaymentIntentResponseDto(null, 0L, "bob", "succeeded");
+        }
+
+        try {
+            PaymentIntentCreateParams params = PaymentIntentCreateParams.builder()
+                    .setAmount(amount)
+                    .setCurrency("bob")
+                    .putMetadata("sessionToken", dto.sessionToken())
+                    .putMetadata("plan", session.getPlan())
+                    .putMetadata("billingCycle", session.getBillingCycle())
+                    .putMetadata("type", "onboarding")
+                    .build();
+            PaymentIntent intent = PaymentIntent.create(params);
+            return new PaymentIntentResponseDto(intent.getClientSecret(), amount, "bob", intent.getStatus());
+        } catch (com.stripe.exception.StripeException e) {
+            throw new RuntimeException("Error al crear el Payment Intent de Stripe: " + e.getMessage(), e);
+        }
+    }
+
+    public PaymentIntentResponseDto createChangePlanPaymentIntent(String slug, ChangePlanPaymentIntentDto dto) {
+        Tenant tenant = tenantRepository.findBySlug(slug)
+                .orElseThrow(() -> new IllegalArgumentException("Tenant no encontrado: " + slug));
+
+        PlanDto planDto = planService.getPlanByName(dto.plan());
+        boolean isYearly = "YEARLY".equalsIgnoreCase(tenant.getBillingCycle());
+        java.math.BigDecimal price = isYearly ? planDto.priceYearly() : planDto.priceMonthly();
+        long amount = price.multiply(new java.math.BigDecimal(100)).longValue();
+
+        if (amount <= 0) {
+            return new PaymentIntentResponseDto(null, 0L, "bob", "succeeded");
+        }
+
+        try {
+            PaymentIntentCreateParams params = PaymentIntentCreateParams.builder()
+                    .setAmount(amount)
+                    .setCurrency("bob")
+                    .putMetadata("tenantSlug", slug)
+                    .putMetadata("plan", dto.plan())
+                    .putMetadata("billingCycle", tenant.getBillingCycle())
+                    .putMetadata("type", "change-plan")
+                    .build();
+            PaymentIntent intent = PaymentIntent.create(params);
+            return new PaymentIntentResponseDto(intent.getClientSecret(), amount, "bob", intent.getStatus());
+        } catch (com.stripe.exception.StripeException e) {
+            throw new RuntimeException("Error al crear el Payment Intent de Stripe: " + e.getMessage(), e);
+        }
+    }
+
+    private long getPlanPriceInCents(String plan, String billingCycle) {
+        try {
+            PlanDto planDto = planService.getPlanByName(plan);
+            boolean isYearly = "YEARLY".equalsIgnoreCase(billingCycle);
+            java.math.BigDecimal price = isYearly ? planDto.priceYearly() : planDto.priceMonthly();
+            return price.multiply(new java.math.BigDecimal(100)).longValue();
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Plan inválido: " + plan);
+        }
+    }
+
     private String generateUniqueSlug(String baseName) {
         String baseSlug = TagSlugGenerator.generateTenantSlug(baseName);
         String slug = baseSlug;
@@ -212,14 +286,40 @@ public class TenantService implements AuditableService<Object, Tenant> {
         tenant.setSettings(buildDefaultSettings(planName));
         tenant = tenantRepository.save(tenant);
 
-        Tenant systemTenant = tenantRepository.findBySlug(systemSlug)
-                .orElseThrow(() -> new IllegalStateException("Tenant maestro no encontrado."));
+        // Crear roles específicos para este nuevo Tenant
+        Set<Permission> allPermissions = new java.util.HashSet<>(permissionRepository.findAll());
 
-        Role adminRole = roleRepository.findByNameAndTenantId("ROLE_ADMIN", systemTenant.getId())
-                .orElseThrow(() -> new IllegalStateException("Rol global ADMIN no encontrado."));
+        // 1. Crear ROLE_ADMIN con todos los permisos
+        Role adminRole = roleRepository.save(Role.builder()
+                .name("ROLE_ADMIN")
+                .description("Administrador de la clínica")
+                .tenant(tenant)
+                .permissions(allPermissions)
+                .build());
+
+        // 2. Crear otros roles estándar
+        roleRepository.save(Role.builder()
+                .name("ROLE_MEDICO")
+                .description("Personal médico del sistema")
+                .tenant(tenant)
+                .build());
+
+        roleRepository.save(Role.builder()
+                .name("ROLE_ARCHIVO")
+                .description("Encargado de archivo histórico")
+                .tenant(tenant)
+                .build());
+
+        roleRepository.save(Role.builder()
+                .name("ROLE_DIRECTOR")
+                .description("Director del hospital")
+                .tenant(tenant)
+                .build());
 
         User admin = tenantMapper.toAdminUserEntity(regData, adminRole, tenant);
         userRepository.save(admin);
+
+        templateDataSeeder.seedForTenant(tenant);
 
         return tenant;
     }
@@ -542,19 +642,19 @@ public class TenantService implements AuditableService<Object, Tenant> {
 
     @Transactional
     @Auditable(resourceType = "TENANT_SUBSCRIPTION", actionType = ActionType.UPDATE, idParamName = "slug")
-    public RenewSubscriptionResponseDto renewSubscription(String slug, String plan, String billingCycle) {
+    public RenewSubscriptionResponseDto renewSubscription(String slug, String plan, String billingCycle, String paymentIntentId) {
         Tenant tenant = tenantRepository.findBySlug(slug)
                 .orElseThrow(() -> new IllegalArgumentException("Tenant no encontrado: " + slug));
 
-        SubscriptionPlan subPlan = SubscriptionPlan.valueOf(dto.plan().toUpperCase());
-        long expectedAmount = getPlanPriceInCents(dto.plan());
+        SubscriptionPlan subPlan = SubscriptionPlan.valueOf(plan.toUpperCase());
+        long expectedAmount = getPlanPriceInCents(plan, billingCycle);
 
         if (expectedAmount > 0) {
-            if (dto.paymentIntentId() == null || dto.paymentIntentId().isBlank()) {
+            if (paymentIntentId == null || paymentIntentId.isBlank()) {
                 throw new IllegalArgumentException("El ID de pago es requerido para renovar un plan de pago.");
             }
             try {
-                PaymentIntent intent = PaymentIntent.retrieve(dto.paymentIntentId());
+                PaymentIntent intent = PaymentIntent.retrieve(paymentIntentId);
                 if (!"succeeded".equalsIgnoreCase(intent.getStatus())) {
                     throw new IllegalStateException("El pago no ha sido completado. Estado: " + intent.getStatus());
                 }
@@ -567,7 +667,7 @@ public class TenantService implements AuditableService<Object, Tenant> {
                 if (!slug.equals(intent.getMetadata().get("tenantSlug"))) {
                     throw new IllegalArgumentException("El pago no pertenece a esta clínica.");
                 }
-            } catch (StripeException e) {
+            } catch (com.stripe.exception.StripeException e) {
                 throw new RuntimeException("Error al verificar pago con Stripe: " + e.getMessage(), e);
             }
         }
@@ -596,10 +696,10 @@ public class TenantService implements AuditableService<Object, Tenant> {
 
         tenantRepository.save(tenant);
 
-        log.info("Tenant {} renovó suscripción al plan {} (ciclo {})", slug, newPlan, effectiveBillingCycle);
+        log.info("Tenant {} renovó suscripción al plan {} (ciclo {})", slug, plan, effectiveBillingCycle);
 
         return new RenewSubscriptionResponseDto(
-                newPlan.name(),
+                plan,
                 effectiveBillingCycle,
                 LocalDate.now(),
                 newEndDate,
@@ -609,7 +709,8 @@ public class TenantService implements AuditableService<Object, Tenant> {
 
     @Transactional
     @Auditable(resourceType = "TENANT_SUBSCRIPTION", actionType = ActionType.UPDATE, idParamName = "slug")
-    public ChangePlanResponseDto changePlan(String slug, String newPlanName) {
+    public ChangePlanResponseDto changePlan(String slug, ChangePlanRequestDto dto) {
+        String newPlanName = dto.newPlan();
         Tenant tenant = tenantRepository.findBySlug(slug)
                 .orElseThrow(() -> new IllegalArgumentException("Tenant no encontrado: " + slug));
 
@@ -620,7 +721,7 @@ public class TenantService implements AuditableService<Object, Tenant> {
             throw new IllegalArgumentException("El plan seleccionado es el mismo que el actual");
         }
 
-        long expectedAmount = getPlanPriceInCents(dto.newPlan());
+        long expectedAmount = getPlanPriceInCents(dto.newPlan(), tenant.getBillingCycle());
 
         if (expectedAmount > 0) {
             if (dto.paymentIntentId() == null || dto.paymentIntentId().isBlank()) {
@@ -643,7 +744,7 @@ public class TenantService implements AuditableService<Object, Tenant> {
                 if (!dto.newPlan().equalsIgnoreCase(intent.getMetadata().get("plan"))) {
                     throw new IllegalArgumentException("El plan pagado no coincide con el seleccionado.");
                 }
-            } catch (StripeException e) {
+            } catch (com.stripe.exception.StripeException e) {
                 throw new RuntimeException("Error al verificar pago con Stripe: " + e.getMessage(), e);
             }
         }

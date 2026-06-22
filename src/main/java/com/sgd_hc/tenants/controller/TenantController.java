@@ -109,7 +109,8 @@ public class TenantController {
             @RequestBody Map<String, String> body) {
         String plan = body.get("plan");
         String billingCycle = body.getOrDefault("billingCycle", "MONTHLY");
-        return ResponseEntity.ok(tenantService.renewSubscription(tenantSlug, plan, billingCycle));
+        String paymentIntentId = body.get("paymentIntentId");
+        return ResponseEntity.ok(tenantService.renewSubscription(tenantSlug, plan, billingCycle, paymentIntentId));
     }
 
     @PostMapping("/current/change-plan")
