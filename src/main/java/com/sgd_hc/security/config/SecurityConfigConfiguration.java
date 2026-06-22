@@ -43,6 +43,8 @@ public class SecurityConfigConfiguration {
             "/api/auth/**",
             "/api/public/**",
             "/api/tenants/public/**",
+            "/api/plans",
+            "/api/plans/**",
             "/api/storage/**",
             "/api/branding",            
             "/api/documents/onlyoffice/callback",

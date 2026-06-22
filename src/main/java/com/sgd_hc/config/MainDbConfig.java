@@ -49,7 +49,8 @@ public class MainDbConfig {
         em.setDataSource(dataSource);
         em.setPackagesToScan("com.sgd_hc.users.entity", "com.sgd_hc.tenants.entity",
                 "com.sgd_hc.patients.entity", "com.sgd_hc.documents.entity",
-                "com.sgd_hc.dicom.entity", "com.sgd_hc.backups.entity");
+                "com.sgd_hc.dicom.entity", "com.sgd_hc.backups.entity",
+                "com.sgd_hc.workflow.entity", "com.sgd_hc.notifications.entity");
         em.setPersistenceUnitName("main");
 
         JpaVendorAdapter vendorAdapter = new HibernateJpaVendorAdapter();

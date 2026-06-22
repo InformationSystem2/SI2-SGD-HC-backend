@@ -74,7 +74,78 @@ public class EmailService {
         return sendEmail(to, subject, content);
     }
 
-    private boolean sendEmail(String to, String subject, String content) {
+    public boolean sendTaskAssignedEmail(String to, String patientName, String assignerName) {
+        String subject = "Nueva tarea de revisión asignada - SGD HC";
+        String content = String.format(
+                "<div style='font-family: Arial, sans-serif; max-width: 600px; margin: auto; border: 1px solid #eee; padding: 20px;'>"
+                        +
+                        "<h2 style='color: #0056b3;'>Tarea de Revisión Asignada</h2>" +
+                        "<p>Hola,</p>" +
+                        "<p><strong>%s</strong> te asignó un documento del paciente <strong>%s</strong> para revisar.</p>"
+                        +
+                        "<p>Por favor, revisa el documento lo antes posible desde tu panel de tareas.</p>" +
+                        "<br><p>Atentamente,<br><strong>Equipo de SGD HC</strong></p>" +
+                        "</div>",
+                assignerName, patientName);
+
+        return sendEmail(to, subject, content);
+    }
+
+    public boolean sendTaskApprovedEmail(String to, String patientName) {
+        String subject = "Documento aprobado - SGD HC";
+        String content = String.format(
+                "<div style='font-family: Arial, sans-serif; max-width: 600px; margin: auto; border: 1px solid #eee; padding: 20px;'>"
+                        +
+                        "<h2 style='color: #28a745;'>Documento Aprobado</h2>" +
+                        "<p>Hola,</p>" +
+                        "<p>El documento del paciente <strong>%s</strong> ha sido <strong style='color: #28a745;'>aprobado</strong> por el revisor.</p>"
+                        +
+                        "<p>El documento ahora está finalizado y listo para uso.</p>" +
+                        "<br><p>Atentamente,<br><strong>Equipo de SGD HC</strong></p>" +
+                        "</div>",
+                patientName);
+
+        return sendEmail(to, subject, content);
+    }
+
+    public boolean sendTaskRejectedEmail(String to, String patientName, String reason) {
+        String subject = "Documento rechazado - SGD HC";
+        String content = String.format(
+                "<div style='font-family: Arial, sans-serif; max-width: 600px; margin: auto; border: 1px solid #eee; padding: 20px;'>"
+                        +
+                        "<h2 style='color: #dc3545;'>Documento Rechazado</h2>" +
+                        "<p>Hola,</p>" +
+                        "<p>El documento del paciente <strong>%s</strong> ha sido <strong style='color: #dc3545;'>rechazado</strong> por el revisor.</p>"
+                        +
+                        (reason != null && !reason.isBlank()
+                                ? "<p><strong>Motivo:</strong> %s</p>"
+                                : "") +
+                        "<p>Por favor, corrige el documento y vuelve a enviarlo a revisión.</p>" +
+                        "<br><p>Atentamente,<br><strong>Equipo de SGD HC</strong></p>" +
+                        "</div>",
+                patientName, reason);
+
+        return sendEmail(to, subject, content);
+    }
+
+    public boolean sendTaskOverdueEmail(String to, String patientName) {
+        String subject = "Tarea de revisión vencida - SGD HC";
+        String content = String.format(
+                "<div style='font-family: Arial, sans-serif; max-width: 600px; margin: auto; border: 1px solid #eee; padding: 20px;'>"
+                        +
+                        "<h2 style='color: #dc3545;'>Tarea Vencida</h2>" +
+                        "<p>Hola,</p>" +
+                        "<p>Tu tarea de revisión para el documento del paciente <strong>%s</strong> ha <strong style='color: #dc3545;'>vencido</strong>.</p>"
+                        +
+                        "<p>Por favor, completa la revisión lo antes posible.</p>" +
+                        "<br><p>Atentamente,<br><strong>Equipo de SGD HC</strong></p>" +
+                        "</div>",
+                patientName);
+
+        return sendEmail(to, subject, content);
+    }
+
+    public boolean sendEmail(String to, String subject, String content) {
         log.info("Iniciando proceso de envío de email a {}...", to);
         if (mailSender == null) {
             log.warn(
