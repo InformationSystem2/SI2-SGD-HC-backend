@@ -16,6 +16,7 @@ import com.sgd_hc.patients.entity.Patient;
 import com.sgd_hc.patients.repository.PatientRepository;
 import com.sgd_hc.security.details.SecurityUser;
 import com.sgd_hc.tenants.entity.Tenant;
+import com.sgd_hc.tenants.service.PlanFeatureValidator;
 import com.sgd_hc.tenants.service.PlanLimitValidator;
 import com.sgd_hc.tenants.service.TenantResolverService;
 import com.sgd_hc.users.entity.User;
@@ -55,6 +56,7 @@ public class DicomParserService implements AuditableService<UUID, DicomStudy> {
     private final DicomMapper             dicomMapper;
     private final FileStorageService      fileStorageService;
     private final PlanLimitValidator      planLimitValidator;
+    private final PlanFeatureValidator    planFeatureValidator;
 
     /**
      * Punto de entrada principal. Persiste la jerarquía Study → Series → Instance
@@ -68,6 +70,7 @@ public class DicomParserService implements AuditableService<UUID, DicomStudy> {
         }
 
         Tenant tenant   = tenantResolverService.resolve();
+        planFeatureValidator.checkDicomImaging(tenant.getId());
         planLimitValidator.checkDicomStudiesLimit(tenant.getId());
         planLimitValidator.checkStorageLimit(tenant.getId(), file.getSize());
 
@@ -119,6 +122,7 @@ public class DicomParserService implements AuditableService<UUID, DicomStudy> {
                 .orElseThrow(() -> new EntityNotFoundException(
                         "Paciente no encontrado con id: " + patientId));
         Tenant tenant   = tenantResolverService.resolve();
+        planFeatureValidator.checkDicomImaging(tenant.getId());
         planLimitValidator.checkDicomStudiesLimit(tenant.getId());
 
         long totalBytes = files.stream().mapToLong(MultipartFile::getSize).sum();

@@ -20,6 +20,7 @@ import com.sgd_hc.patients.entity.Patient;
 import com.sgd_hc.patients.repository.PatientRepository;
 import com.sgd_hc.security.details.SecurityUser;
 import com.sgd_hc.tenants.entity.Tenant;
+import com.sgd_hc.tenants.service.PlanFeatureValidator;
 import com.sgd_hc.tenants.service.PlanLimitValidator;
 import com.sgd_hc.tenants.service.TenantResolverService;
 import com.sgd_hc.users.entity.User;
@@ -68,7 +69,7 @@ public class DocumentService implements AuditableService<UUID, Document> {
     private final DocumentOcrMetadataRepository ocrMetadataRepository;
     private final FileStorageService        fileStorageService;
     private final PlanLimitValidator         planLimitValidator;
-    private final FileStorageService            fileStorageService;
+    private final PlanFeatureValidator       planFeatureValidator;
     private final DocumentVersioningService     documentVersioningService;
     private final ReviewTaskService             reviewTaskService;
     private final WorkflowEventService          workflowEventService;
@@ -191,11 +192,44 @@ public class DocumentService implements AuditableService<UUID, Document> {
 
         UUID tenantId = saved.getTenant().getId();
 
-        // Cuando el autor corrige (REJECTED → DRAFT): cancelar tareas activas y registrar evento
-        if (previousStatus == DocumentStatus.REJECTED && newStatus == DocumentStatus.DRAFT) {
+        // DRAFT → PENDING_REVIEW: cancelar tareas previas y registrar evento
+        if (previousStatus == DocumentStatus.DRAFT && newStatus == DocumentStatus.PENDING_REVIEW) {
             reviewTaskService.cancelTasksForDocument(id, tenantId);
+            documentVersioningService.recordVersion(doc, currentUser().getId(), "Enviado a revisión");
+            workflowEventService.recordEvent(saved, tenantId,
+                    WorkflowEventType.SENT_TO_REVIEW, currentUser(), null, null);
+        }
+        // PENDING_REVIEW → FINALIZED: cancelar tareas y registrar eventos
+        else if (previousStatus == DocumentStatus.PENDING_REVIEW && newStatus == DocumentStatus.FINALIZED) {
+            reviewTaskService.cancelTasksForDocument(id, tenantId);
+            documentVersioningService.recordVersion(doc, currentUser().getId(), "Aprobado y finalizado");
+            workflowEventService.recordEvent(saved, tenantId,
+                    WorkflowEventType.TASK_APPROVED, currentUser(), null, null);
+            workflowEventService.recordEvent(saved, tenantId,
+                    WorkflowEventType.DOCUMENT_FINALIZED, currentUser(), null, null);
+        }
+        // PENDING_REVIEW → REJECTED: cancelar tareas y registrar eventos
+        else if (previousStatus == DocumentStatus.PENDING_REVIEW && newStatus == DocumentStatus.REJECTED) {
+            reviewTaskService.cancelTasksForDocument(id, tenantId);
+            documentVersioningService.recordVersion(doc, currentUser().getId(), "Rechazado");
+            workflowEventService.recordEvent(saved, tenantId,
+                    WorkflowEventType.TASK_REJECTED, currentUser(), null, null);
+            workflowEventService.recordEvent(saved, tenantId,
+                    WorkflowEventType.DOCUMENT_REJECTED, currentUser(), null, null);
+        }
+        // REJECTED → DRAFT: cancelar tareas activas y registrar evento
+        else if (previousStatus == DocumentStatus.REJECTED && newStatus == DocumentStatus.DRAFT) {
+            reviewTaskService.cancelTasksForDocument(id, tenantId);
+            documentVersioningService.recordVersion(doc, currentUser().getId(), "Corregido - vuelta a borrador");
             workflowEventService.recordEvent(saved, tenantId,
                     WorkflowEventType.DOCUMENT_CORRECTED, currentUser(), null, null);
+        }
+        // REJECTED → PENDING_REVIEW: cancelar tareas viejas y reenviar
+        else if (previousStatus == DocumentStatus.REJECTED && newStatus == DocumentStatus.PENDING_REVIEW) {
+            reviewTaskService.cancelTasksForDocument(id, tenantId);
+            documentVersioningService.recordVersion(doc, currentUser().getId(), "Reenviado a revisión");
+            workflowEventService.recordEvent(saved, tenantId,
+                    WorkflowEventType.SENT_TO_REVIEW, currentUser(), null, null);
         }
 
         return documentMapper.toResponseDto(saved, authorities);
@@ -284,6 +318,7 @@ public class DocumentService implements AuditableService<UUID, Document> {
     public OcrResultDto processOcr(UUID documentId) {
         Document doc = findOrThrow(documentId);
 
+        planFeatureValidator.checkOcrScanning(doc.getTenant().getId());
         planLimitValidator.checkOcrPagesLimit(doc.getTenant().getId());
 
         if (doc.getFileUrl() == null || doc.getFileUrl().isBlank())

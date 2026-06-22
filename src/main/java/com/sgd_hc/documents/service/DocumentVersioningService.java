@@ -5,6 +5,7 @@ import com.sgd_hc.documents.entity.Document;
 import com.sgd_hc.documents.entity.DocumentVersion;
 import com.sgd_hc.documents.repository.DocumentRepository;
 import com.sgd_hc.documents.repository.DocumentVersionRepository;
+import com.sgd_hc.tenants.service.PlanLimitValidator;
 import com.sgd_hc.tenants.service.TenantResolverService;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
@@ -27,6 +28,7 @@ public class DocumentVersioningService {
     private final DocumentRepository        documentRepository;
     private final DocumentVersionRepository documentVersionRepository;
     private final TenantResolverService     tenantResolverService;
+    private final PlanLimitValidator        planLimitValidator;
 
     /**
      * Registra una versión inmutable (snapshot) a partir del estado actual de un documento
@@ -35,6 +37,10 @@ public class DocumentVersioningService {
     @Transactional
     public void recordVersion(Document doc, UUID authorId, String changeReason) {
         if (doc == null) return;
+
+        UUID tenantId = doc.getTenant().getId();
+        planLimitValidator.checkVersionsPerDocumentLimit(tenantId, doc.getId());
+        planLimitValidator.checkVersionsMonthlyLimit(tenantId);
 
         log.info("Creando snapshot inmutable para el documento: docId={}, versionNumber={}", doc.getId(), doc.getVersionNumber());
 

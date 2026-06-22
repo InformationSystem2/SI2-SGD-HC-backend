@@ -199,7 +199,10 @@ public class OnlyofficeService {
                 versioningService.recordVersion(doc, authorId, "Cambios guardados desde co-edición OnlyOffice");
 
                 OoDocType docType = resolveDocType(doc);
-                String filename = UUID.randomUUID() + "." + docType.fileExt;
+                String newExt = (body.filetype() != null && !body.filetype().isBlank()) 
+                                ? body.filetype() 
+                                : docType.fileExt;
+                String filename = UUID.randomUUID() + "." + newExt;
                 String relativeUrl = fileStorageService.store(filename, fileBytes);
 
                 doc.setFileUrl(relativeUrl);
@@ -226,6 +229,17 @@ public class OnlyofficeService {
         } else if (downloadUrl.contains("127.0.0.1")) {
             downloadUrl = downloadUrl.replace("127.0.0.1", "host.docker.internal");
         }
+
+        // Fix para entornos nativos (Linux) donde host.docker.internal no se resuelve automáticamente
+        if (downloadUrl.contains("host.docker.internal")) {
+            try {
+                java.net.InetAddress.getByName("host.docker.internal");
+            } catch (java.net.UnknownHostException e) {
+                // Si la máquina no lo reconoce, regresamos a localhost
+                downloadUrl = downloadUrl.replace("host.docker.internal", "localhost");
+            }
+        }
+
         return downloadUrl;
     }
 
