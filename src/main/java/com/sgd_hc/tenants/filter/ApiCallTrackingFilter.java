@@ -2,6 +2,7 @@ package com.sgd_hc.tenants.filter;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sgd_hc.security.exception.PlanLimitExceededException;
+import com.sgd_hc.tenants.repository.ApiCallUsageRepository;
 import com.sgd_hc.tenants.repository.TenantRepository;
 import com.sgd_hc.tenants.service.PlanLimitValidator;
 import jakarta.servlet.FilterChain;
@@ -13,6 +14,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.NonNull;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
@@ -28,9 +30,10 @@ import java.util.UUID;
 public class ApiCallTrackingFilter extends OncePerRequestFilter {
 
     private final PlanLimitValidator planLimitValidator;
-    private final com.sgd_hc.tenants.repository.ApiCallUsageRepository apiCallUsageRepository;
+    private final ApiCallUsageRepository apiCallUsageRepository;
     private final TenantRepository tenantRepository;
     private final ObjectMapper objectMapper;
+    private final TransactionTemplate transactionTemplate;
 
     private static final DateTimeFormatter YEAR_MONTH = DateTimeFormatter.ofPattern("yyyy-MM");
 
@@ -83,7 +86,9 @@ public class ApiCallTrackingFilter extends OncePerRequestFilter {
 
         if (response.getStatus() >= 200 && response.getStatus() < 300) {
             try {
-                apiCallUsageRepository.incrementCallCount(tenantId, yearMonth);
+                transactionTemplate.executeWithoutResult(status ->
+                    apiCallUsageRepository.incrementCallCount(tenantId, yearMonth)
+                );
             } catch (Exception e) {
                 log.warn("Failed to track API call for tenant {}: {}", tenantId, e.getMessage());
             }

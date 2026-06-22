@@ -16,7 +16,7 @@ public interface ApiCallUsageRepository extends JpaRepository<ApiCallUsage, UUID
     @Modifying
     @Query(value = """
             INSERT INTO api_call_usage (id, tenant_id, year_month, call_count, created_at, updated_at)
-            VALUES (uuid_generate_v4(), :tenantId, :yearMonth, 1, now(), now())
+            VALUES (gen_random_uuid(), :tenantId, :yearMonth, 1, now(), now())
             ON CONFLICT (tenant_id, year_month)
             DO UPDATE SET call_count = api_call_usage.call_count + 1,
                          updated_at = now()

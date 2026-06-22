@@ -144,10 +144,22 @@ public class PlanService {
 
     public PlanDto toDto(Plan plan) {
         Map<String, Long> limits = new LinkedHashMap<>();
-        plan.getLimits().forEach(l -> limits.put(l.getResourceKey(), l.getResourceValue()));
+        if (plan.getLimits() != null) {
+            plan.getLimits().forEach(l -> {
+                if (l != null && l.getResourceKey() != null) {
+                    limits.put(l.getResourceKey(), l.getResourceValue());
+                }
+            });
+        }
 
         Map<String, Boolean> features = new LinkedHashMap<>();
-        plan.getFeatures().forEach(f -> features.put(f.getFeatureKey(), f.getIsEnabled()));
+        if (plan.getFeatures() != null) {
+            plan.getFeatures().forEach(f -> {
+                if (f != null && f.getFeatureKey() != null) {
+                    features.put(f.getFeatureKey(), f.getIsEnabled());
+                }
+            });
+        }
 
         return new PlanDto(
                 plan.getId(),

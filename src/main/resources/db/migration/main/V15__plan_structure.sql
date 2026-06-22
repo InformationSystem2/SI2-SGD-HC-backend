@@ -97,8 +97,8 @@ COMMENT ON COLUMN dicom_instances.file_size_bytes IS 'Tamaño real del archivo D
 INSERT INTO plans (id, name, display_name, description, price_monthly, price_yearly, cycle_days, grace_period_days, sort_order)
 VALUES
 (gen_random_uuid(), 'BASIC', 'Básico',
- 'Plan gratuito ideal para clínicas pequeñas que recién comienzan. Incluye funcionalidades esenciales de gestión documental.',
- 0, 0, 30, 3, 1);
+ 'Plan ideal para clínicas pequeñas. Incluye funcionalidades esenciales de gestión documental y workflow básico.',
+ 5, 50, 30, 3, 1);
 
 INSERT INTO plan_limits (plan_id, resource_key, resource_value, unit)
 SELECT id, 'maxUsers', 10, 'users' FROM plans WHERE name = 'BASIC'
@@ -111,24 +111,22 @@ UNION ALL SELECT id, 'maxReportTemplates', 3, 'reports' FROM plans WHERE name = 
 UNION ALL SELECT id, 'maxDicomStudies', 0, 'studies/month' FROM plans WHERE name = 'BASIC'
 UNION ALL SELECT id, 'maxOcrPagesPerMonth', 0, 'pages/month' FROM plans WHERE name = 'BASIC'
 UNION ALL SELECT id, 'maxBackupsPerYear', 3, 'backups/year' FROM plans WHERE name = 'BASIC'
-UNION ALL SELECT id, 'maxStaffRoles', 5, 'roles' FROM plans WHERE name = 'BASIC';
+UNION ALL SELECT id, 'maxStaffRoles', 5, 'roles' FROM plans WHERE name = 'BASIC'
+UNION ALL SELECT id, 'maxActiveReviewTasks', 50, 'count' FROM plans WHERE name = 'BASIC'
+UNION ALL SELECT id, 'maxReviewTasksPerMonth', 100, 'count' FROM plans WHERE name = 'BASIC'
+UNION ALL SELECT id, 'maxVersionsPerDocument', 50, 'count' FROM plans WHERE name = 'BASIC'
+UNION ALL SELECT id, 'maxVersionsPerMonth', 200, 'count' FROM plans WHERE name = 'BASIC';
 
 INSERT INTO plan_features (plan_id, feature_key, is_enabled, description)
 SELECT id, 'dicom_imaging', false, 'Módulo de radiología DICOM' FROM plans WHERE name = 'BASIC'
 UNION ALL SELECT id, 'ocr_scanning', false, 'Escaneo OCR automático de documentos' FROM plans WHERE name = 'BASIC'
 UNION ALL SELECT id, 'online_editing', false, 'Edición online de documentos (OnlyOffice)' FROM plans WHERE name = 'BASIC'
 UNION ALL SELECT id, 'custom_branding', false, 'Personalización de colores y logo' FROM plans WHERE name = 'BASIC'
-UNION ALL SELECT id, 'two_factor_auth', false, 'Autenticación de dos factores' FROM plans WHERE name = 'BASIC'
-UNION ALL SELECT id, 'audit_trail', false, 'Auditoría de actividad de usuarios' FROM plans WHERE name = 'BASIC'
 UNION ALL SELECT id, 'advanced_analytics', false, 'Dashboard de analíticas avanzadas' FROM plans WHERE name = 'BASIC'
 UNION ALL SELECT id, 'report_builder', false, 'Constructor de informes personalizados' FROM plans WHERE name = 'BASIC'
 UNION ALL SELECT id, 'api_access', false, 'Acceso a API pública' FROM plans WHERE name = 'BASIC'
-UNION ALL SELECT id, 'sms_notifications', false, 'Notificaciones por SMS' FROM plans WHERE name = 'BASIC'
+UNION ALL SELECT id, 'email_notifications', false, 'Notificaciones por email' FROM plans WHERE name = 'BASIC'
 UNION ALL SELECT id, 'push_notifications', false, 'Notificaciones push' FROM plans WHERE name = 'BASIC'
-UNION ALL SELECT id, 'webhooks_integrations', false, 'Integraciones vía webhooks' FROM plans WHERE name = 'BASIC'
-UNION ALL SELECT id, 'dedicated_manager', false, 'Account Manager dedicado' FROM plans WHERE name = 'BASIC'
-UNION ALL SELECT id, 'priority_support', false, 'Soporte prioritario (respuesta <24h)' FROM plans WHERE name = 'BASIC'
-UNION ALL SELECT id, 'support_24_7', false, 'Soporte 24/7' FROM plans WHERE name = 'BASIC'
 UNION ALL SELECT id, 'custom_roles', false, 'Roles de usuario personalizados' FROM plans WHERE name = 'BASIC';
 
 -- ── PRO ───────────────────────────────────────────────────────────────────────
@@ -150,24 +148,22 @@ UNION ALL SELECT id, 'maxReportTemplates', 10, 'reports' FROM plans WHERE name =
 UNION ALL SELECT id, 'maxDicomStudies', 50, 'studies/month' FROM plans WHERE name = 'PRO'
 UNION ALL SELECT id, 'maxOcrPagesPerMonth', 100, 'pages/month' FROM plans WHERE name = 'PRO'
 UNION ALL SELECT id, 'maxBackupsPerYear', 52, 'backups/year' FROM plans WHERE name = 'PRO'
-UNION ALL SELECT id, 'maxStaffRoles', 50, 'roles' FROM plans WHERE name = 'PRO';
+UNION ALL SELECT id, 'maxStaffRoles', 50, 'roles' FROM plans WHERE name = 'PRO'
+UNION ALL SELECT id, 'maxActiveReviewTasks', 200, 'count' FROM plans WHERE name = 'PRO'
+UNION ALL SELECT id, 'maxReviewTasksPerMonth', 500, 'count' FROM plans WHERE name = 'PRO'
+UNION ALL SELECT id, 'maxVersionsPerDocument', 200, 'count' FROM plans WHERE name = 'PRO'
+UNION ALL SELECT id, 'maxVersionsPerMonth', 1000, 'count' FROM plans WHERE name = 'PRO';
 
 INSERT INTO plan_features (plan_id, feature_key, is_enabled, description)
 SELECT id, 'dicom_imaging', true, 'Módulo de radiología DICOM' FROM plans WHERE name = 'PRO'
 UNION ALL SELECT id, 'ocr_scanning', true, 'Escaneo OCR automático de documentos' FROM plans WHERE name = 'PRO'
 UNION ALL SELECT id, 'online_editing', true, 'Edición online de documentos (OnlyOffice)' FROM plans WHERE name = 'PRO'
 UNION ALL SELECT id, 'custom_branding', true, 'Personalización de colores y logo' FROM plans WHERE name = 'PRO'
-UNION ALL SELECT id, 'two_factor_auth', true, 'Autenticación de dos factores' FROM plans WHERE name = 'PRO'
-UNION ALL SELECT id, 'audit_trail', true, 'Auditoría de actividad de usuarios (90 días)' FROM plans WHERE name = 'PRO'
 UNION ALL SELECT id, 'advanced_analytics', true, 'Dashboard de analíticas avanzadas' FROM plans WHERE name = 'PRO'
 UNION ALL SELECT id, 'report_builder', true, 'Constructor de informes personalizados' FROM plans WHERE name = 'PRO'
 UNION ALL SELECT id, 'api_access', true, 'Acceso a API pública (rate limit estándar)' FROM plans WHERE name = 'PRO'
-UNION ALL SELECT id, 'sms_notifications', true, 'Notificaciones por SMS' FROM plans WHERE name = 'PRO'
+UNION ALL SELECT id, 'email_notifications', true, 'Notificaciones por email' FROM plans WHERE name = 'PRO'
 UNION ALL SELECT id, 'push_notifications', false, 'Notificaciones push' FROM plans WHERE name = 'PRO'
-UNION ALL SELECT id, 'webhooks_integrations', false, 'Integraciones vía webhooks' FROM plans WHERE name = 'PRO'
-UNION ALL SELECT id, 'dedicated_manager', false, 'Account Manager dedicado' FROM plans WHERE name = 'PRO'
-UNION ALL SELECT id, 'priority_support', true, 'Soporte prioritario (respuesta <24h)' FROM plans WHERE name = 'PRO'
-UNION ALL SELECT id, 'support_24_7', false, 'Soporte 24/7' FROM plans WHERE name = 'PRO'
 UNION ALL SELECT id, 'custom_roles', true, 'Roles de usuario personalizados' FROM plans WHERE name = 'PRO';
 
 -- ── ENTERPRISE ────────────────────────────────────────────────────────────────
@@ -189,22 +185,20 @@ UNION ALL SELECT id, 'maxReportTemplates', -1, 'reports' FROM plans WHERE name =
 UNION ALL SELECT id, 'maxDicomStudies', -1, 'studies/month' FROM plans WHERE name = 'ENTERPRISE'
 UNION ALL SELECT id, 'maxOcrPagesPerMonth', -1, 'pages/month' FROM plans WHERE name = 'ENTERPRISE'
 UNION ALL SELECT id, 'maxBackupsPerYear', -1, 'backups/year' FROM plans WHERE name = 'ENTERPRISE'
-UNION ALL SELECT id, 'maxStaffRoles', -1, 'roles' FROM plans WHERE name = 'ENTERPRISE';
+UNION ALL SELECT id, 'maxStaffRoles', -1, 'roles' FROM plans WHERE name = 'ENTERPRISE'
+UNION ALL SELECT id, 'maxActiveReviewTasks', -1, 'count' FROM plans WHERE name = 'ENTERPRISE'
+UNION ALL SELECT id, 'maxReviewTasksPerMonth', -1, 'count' FROM plans WHERE name = 'ENTERPRISE'
+UNION ALL SELECT id, 'maxVersionsPerDocument', -1, 'count' FROM plans WHERE name = 'ENTERPRISE'
+UNION ALL SELECT id, 'maxVersionsPerMonth', -1, 'count' FROM plans WHERE name = 'ENTERPRISE';
 
 INSERT INTO plan_features (plan_id, feature_key, is_enabled, description)
 SELECT id, 'dicom_imaging', true, 'Módulo de radiología DICOM (ilimitado)' FROM plans WHERE name = 'ENTERPRISE'
 UNION ALL SELECT id, 'ocr_scanning', true, 'Escaneo OCR automático (ilimitado)' FROM plans WHERE name = 'ENTERPRISE'
 UNION ALL SELECT id, 'online_editing', true, 'Edición online de documentos (OnlyOffice)' FROM plans WHERE name = 'ENTERPRISE'
 UNION ALL SELECT id, 'custom_branding', true, 'Personalización de colores y logo' FROM plans WHERE name = 'ENTERPRISE'
-UNION ALL SELECT id, 'two_factor_auth', true, 'Autenticación de dos factores' FROM plans WHERE name = 'ENTERPRISE'
-UNION ALL SELECT id, 'audit_trail', true, 'Auditoría extendida (retención 7 años)' FROM plans WHERE name = 'ENTERPRISE'
 UNION ALL SELECT id, 'advanced_analytics', true, 'Dashboard avanzado con reportes custom' FROM plans WHERE name = 'ENTERPRISE'
 UNION ALL SELECT id, 'report_builder', true, 'Report Builder avanzado' FROM plans WHERE name = 'ENTERPRISE'
 UNION ALL SELECT id, 'api_access', true, 'API pública con rate limits extendidos' FROM plans WHERE name = 'ENTERPRISE'
-UNION ALL SELECT id, 'sms_notifications', true, 'Notificaciones por SMS' FROM plans WHERE name = 'ENTERPRISE'
+UNION ALL SELECT id, 'email_notifications', true, 'Notificaciones por email' FROM plans WHERE name = 'ENTERPRISE'
 UNION ALL SELECT id, 'push_notifications', true, 'Notificaciones push' FROM plans WHERE name = 'ENTERPRISE'
-UNION ALL SELECT id, 'webhooks_integrations', true, 'Integraciones vía webhooks y API' FROM plans WHERE name = 'ENTERPRISE'
-UNION ALL SELECT id, 'dedicated_manager', true, 'Account Manager dedicado' FROM plans WHERE name = 'ENTERPRISE'
-UNION ALL SELECT id, 'priority_support', false, 'Incluido en 24/7' FROM plans WHERE name = 'ENTERPRISE'
-UNION ALL SELECT id, 'support_24_7', true, 'Soporte 24/7 crítico <2h' FROM plans WHERE name = 'ENTERPRISE'
 UNION ALL SELECT id, 'custom_roles', true, 'Roles personalizados ilimitados' FROM plans WHERE name = 'ENTERPRISE';

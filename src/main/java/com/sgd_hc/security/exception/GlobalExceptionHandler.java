@@ -83,6 +83,20 @@ public class GlobalExceptionHandler {
         return new ResponseEntity<>(body, HttpStatus.FORBIDDEN);
     }
 
+    @ExceptionHandler(PlanFeatureDisabledException.class)
+    public ResponseEntity<Object> handlePlanFeatureDisabled(PlanFeatureDisabledException ex, WebRequest request) {
+        request.setAttribute("auditErrorMessage", ex.getMessage(), WebRequest.SCOPE_REQUEST);
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("timestamp", LocalDateTime.now());
+        body.put("status", HttpStatus.FORBIDDEN.value());
+        body.put("error", "Plan Feature Disabled");
+        body.put("message", ex.getMessage());
+        body.put("featureName", ex.getFeatureName());
+        body.put("planName", ex.getPlanName());
+        body.put("path", request.getDescription(false).replace("uri=", ""));
+        return new ResponseEntity<>(body, HttpStatus.FORBIDDEN);
+    }
+
     @ExceptionHandler(TenantSuspendedException.class)
     public ResponseEntity<Object> handleTenantSuspendedException(TenantSuspendedException ex, WebRequest request) {
         request.setAttribute("auditErrorMessage", ex.getMessage(), WebRequest.SCOPE_REQUEST);

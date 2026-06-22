@@ -14,11 +14,14 @@ import com.sgd_hc.tenants.repository.ApiCallUsageRepository;
 import com.sgd_hc.tenants.repository.TenantRepository;
 import com.sgd_hc.users.repository.RoleRepository;
 import com.sgd_hc.users.repository.UserRepository;
+import com.sgd_hc.workflow.repository.ReviewTaskRepository;
+import com.sgd_hc.documents.repository.DocumentVersionRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
+import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.UUID;
 
@@ -42,6 +45,8 @@ public class PlanLimitValidator {
     private final ApiCallUsageRepository apiCallUsageRepository;
     private final ReportTemplateRepository reportTemplateRepository;
     private final BackupHistoryRepository backupHistoryRepository;
+    private final ReviewTaskRepository reviewTaskRepository;
+    private final DocumentVersionRepository documentVersionRepository;
 
     private static final DateTimeFormatter YEAR_MONTH_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM");
 
@@ -170,6 +175,56 @@ public class PlanLimitValidator {
         long current = backupHistoryRepository.countByTenantIdAndYear(tenantId, currentYear);
         if (current >= max) {
             throw new PlanLimitExceededException("backups (este año)", current, max);
+        }
+    }
+
+    public void checkActiveReviewTasksLimit(UUID tenantId) {
+        String planName = resolvePlanName(tenantId);
+        long max = planService.getLimitValue(planName, "maxActiveReviewTasks");
+        if (max == UNLIMITED) return;
+
+        long pending = reviewTaskRepository.countByTenantIdAndStatus(tenantId,
+                com.sgd_hc.workflow.entity.ReviewTaskStatus.PENDING);
+        long inProgress = reviewTaskRepository.countByTenantIdAndStatus(tenantId,
+                com.sgd_hc.workflow.entity.ReviewTaskStatus.IN_PROGRESS);
+        long current = pending + inProgress;
+        if (current >= max) {
+            throw new PlanLimitExceededException("tareas de revisión activas", current, max);
+        }
+    }
+
+    public void checkReviewTasksMonthlyLimit(UUID tenantId) {
+        String planName = resolvePlanName(tenantId);
+        long max = planService.getLimitValue(planName, "maxReviewTasksPerMonth");
+        if (max == UNLIMITED) return;
+
+        OffsetDateTime since = OffsetDateTime.now().withDayOfMonth(1).withHour(0).withMinute(0).withSecond(0).withNano(0);
+        long current = reviewTaskRepository.countCreatedSince(tenantId, since);
+        if (current >= max) {
+            throw new PlanLimitExceededException("tareas de revisión (este mes)", current, max);
+        }
+    }
+
+    public void checkVersionsPerDocumentLimit(UUID tenantId, UUID documentId) {
+        String planName = resolvePlanName(tenantId);
+        long max = planService.getLimitValue(planName, "maxVersionsPerDocument");
+        if (max == UNLIMITED) return;
+
+        long current = documentVersionRepository.countByDocumentIdAndTenantId(documentId, tenantId);
+        if (current >= max) {
+            throw new PlanLimitExceededException("versiones del documento", current, max);
+        }
+    }
+
+    public void checkVersionsMonthlyLimit(UUID tenantId) {
+        String planName = resolvePlanName(tenantId);
+        long max = planService.getLimitValue(planName, "maxVersionsPerMonth");
+        if (max == UNLIMITED) return;
+
+        OffsetDateTime since = OffsetDateTime.now().withDayOfMonth(1).withHour(0).withMinute(0).withSecond(0).withNano(0);
+        long current = documentVersionRepository.countByTenantIdSince(tenantId, since);
+        if (current >= max) {
+            throw new PlanLimitExceededException("versiones de documentos (este mes)", current, max);
         }
     }
 
