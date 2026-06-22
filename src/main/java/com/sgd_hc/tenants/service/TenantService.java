@@ -12,6 +12,10 @@ import com.sgd_hc.tenants.utils.TagSlugGenerator;
 import com.sgd_hc.users.entity.Role;
 import com.sgd_hc.users.entity.User;
 
+import com.stripe.model.PaymentIntent;
+import com.stripe.param.PaymentIntentCreateParams;
+import com.stripe.exception.StripeException;
+
 import com.sgd_hc.users.repository.RoleRepository;
 import com.sgd_hc.users.repository.UserRepository;
 import com.sgd_hc.documents.repository.DocumentRepository;
@@ -542,8 +546,33 @@ public class TenantService implements AuditableService<Object, Tenant> {
         Tenant tenant = tenantRepository.findBySlug(slug)
                 .orElseThrow(() -> new IllegalArgumentException("Tenant no encontrado: " + slug));
 
-        SubscriptionPlan newPlan = SubscriptionPlan.valueOf(plan.toUpperCase());
-        tenant.setSubscriptionPlan(newPlan);
+        SubscriptionPlan subPlan = SubscriptionPlan.valueOf(dto.plan().toUpperCase());
+        long expectedAmount = getPlanPriceInCents(dto.plan());
+
+        if (expectedAmount > 0) {
+            if (dto.paymentIntentId() == null || dto.paymentIntentId().isBlank()) {
+                throw new IllegalArgumentException("El ID de pago es requerido para renovar un plan de pago.");
+            }
+            try {
+                PaymentIntent intent = PaymentIntent.retrieve(dto.paymentIntentId());
+                if (!"succeeded".equalsIgnoreCase(intent.getStatus())) {
+                    throw new IllegalStateException("El pago no ha sido completado. Estado: " + intent.getStatus());
+                }
+                if (!"bob".equalsIgnoreCase(intent.getCurrency())) {
+                    throw new IllegalArgumentException("Moneda inválida. Se requiere BOB.");
+                }
+                if (intent.getAmount() < expectedAmount) {
+                    throw new IllegalArgumentException("Monto de pago insuficiente.");
+                }
+                if (!slug.equals(intent.getMetadata().get("tenantSlug"))) {
+                    throw new IllegalArgumentException("El pago no pertenece a esta clínica.");
+                }
+            } catch (StripeException e) {
+                throw new RuntimeException("Error al verificar pago con Stripe: " + e.getMessage(), e);
+            }
+        }
+
+        tenant.setSubscriptionPlan(subPlan);
         tenant.setSubscriptionStartDate(LocalDate.now());
 
         String effectiveBillingCycle = billingCycle != null ? billingCycle.toUpperCase() : tenant.getBillingCycle();
@@ -589,6 +618,34 @@ public class TenantService implements AuditableService<Object, Tenant> {
 
         if (currentPlan == targetPlan) {
             throw new IllegalArgumentException("El plan seleccionado es el mismo que el actual");
+        }
+
+        long expectedAmount = getPlanPriceInCents(dto.newPlan());
+
+        if (expectedAmount > 0) {
+            if (dto.paymentIntentId() == null || dto.paymentIntentId().isBlank()) {
+                throw new IllegalArgumentException("El ID de pago es requerido para cambiar a un plan de pago.");
+            }
+            try {
+                PaymentIntent intent = PaymentIntent.retrieve(dto.paymentIntentId());
+                if (!"succeeded".equalsIgnoreCase(intent.getStatus())) {
+                    throw new IllegalStateException("El pago no ha sido completado. Estado: " + intent.getStatus());
+                }
+                if (!"bob".equalsIgnoreCase(intent.getCurrency())) {
+                    throw new IllegalArgumentException("Moneda inválida. Se requiere BOB.");
+                }
+                if (intent.getAmount() < expectedAmount) {
+                    throw new IllegalArgumentException("Monto de pago insuficiente.");
+                }
+                if (!slug.equals(intent.getMetadata().get("tenantSlug"))) {
+                    throw new IllegalArgumentException("El pago no pertenece a esta clínica.");
+                }
+                if (!dto.newPlan().equalsIgnoreCase(intent.getMetadata().get("plan"))) {
+                    throw new IllegalArgumentException("El plan pagado no coincide con el seleccionado.");
+                }
+            } catch (StripeException e) {
+                throw new RuntimeException("Error al verificar pago con Stripe: " + e.getMessage(), e);
+            }
         }
 
         tenant.setSubscriptionPlan(targetPlan);

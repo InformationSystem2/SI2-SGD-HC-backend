@@ -54,6 +54,12 @@ public class TenantController {
         return ResponseEntity.ok(tenantService.processPayment(dto));
     }
 
+    @PostMapping("/public/create-payment-intent")
+    public ResponseEntity<PaymentIntentResponseDto> createOnboardingPaymentIntent(
+            @Valid @RequestBody PaymentIntentRequestDto dto) {
+        return ResponseEntity.ok(tenantService.createOnboardingPaymentIntent(dto));
+    }
+
     // ── SETTINGS (por slug - header X-Tenant-ID) ────────────────────────────
 
     @GetMapping("/current/settings")
@@ -110,8 +116,16 @@ public class TenantController {
     @PreAuthorize("hasAnyAuthority('ROLE_ADMIN', 'ROLE_SUPERUSER')")
     public ResponseEntity<ChangePlanResponseDto> changePlan(
             @RequestHeader(value = "X-Tenant-ID", required = true) String tenantSlug,
-            @RequestBody String newPlan) {
-        return ResponseEntity.ok(tenantService.changePlan(tenantSlug, newPlan));
+            @Valid @RequestBody ChangePlanRequestDto dto) {
+        return ResponseEntity.ok(tenantService.changePlan(tenantSlug, dto));
+    }
+
+    @PostMapping("/current/create-payment-intent")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN', 'ROLE_SUPERUSER')")
+    public ResponseEntity<PaymentIntentResponseDto> createChangePlanPaymentIntent(
+            @RequestHeader(value = "X-Tenant-ID", required = true) String tenantSlug,
+            @Valid @RequestBody ChangePlanPaymentIntentDto dto) {
+        return ResponseEntity.ok(tenantService.createChangePlanPaymentIntent(tenantSlug, dto));
     }
 
     // ── GESTIÓN SUPERADMIN - HU-17 (Listado, Detalle, Suspensión, Eliminación) ──
