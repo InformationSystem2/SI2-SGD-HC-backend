@@ -14,6 +14,7 @@ public record NotificationResponseDto(
         String message,
         UUID documentId,
         UUID reviewTaskId,
+        UUID workflowId,
         Boolean isRead,
         OffsetDateTime createdAt,
         OffsetDateTime readAt
