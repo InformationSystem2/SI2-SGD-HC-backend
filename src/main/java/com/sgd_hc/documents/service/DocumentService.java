@@ -132,9 +132,20 @@ public class DocumentService implements AuditableService<UUID, Document> {
         doc.setIsExternalSource(true);
         doc.setStatus(DocumentStatus.DRAFT);
 
-        // Guardamos las notas como contenido clínico simple si las hay
+        // Guardamos las notas y el título como contenido clínico simple si las hay
+        Map<String, Object> content = new LinkedHashMap<>();
         if (dto.notes() != null && !dto.notes().isBlank()) {
-            doc.setClinicalContent(Map.of("notas", dto.notes()));
+            content.put("notas", dto.notes());
+        }
+        if (dto.title() != null && !dto.title().isBlank()) {
+            content.put("titulo", dto.title());
+        }
+        if (dto.fileUrl() != null && dto.fileUrl().contains(".")) {
+            String ext = dto.fileUrl().substring(dto.fileUrl().lastIndexOf('.') + 1);
+            content.put("file_ext", ext.toLowerCase());
+        }
+        if (!content.isEmpty()) {
+            doc.setClinicalContent(content);
         }
 
         return documentMapper.toResponseDto(documentRepository.save(doc), authorities);

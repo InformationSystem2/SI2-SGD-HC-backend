@@ -53,7 +53,16 @@ public class DocumentMapper {
     public DocumentResponseDto toResponseDto(Document doc, Set<String> userAuthorities) {
         // template es nullable para documentos externos
         UUID templateId = doc.getTemplate() != null ? doc.getTemplate().getId() : null;
-        String templateName = doc.getTemplate() != null ? doc.getTemplate().getName() : "Documento Externo";
+        String templateName;
+        if (doc.getTemplate() != null) {
+            templateName = doc.getTemplate().getName();
+        } else if (doc.getClinicalContent() != null
+                && doc.getClinicalContent().get("titulo") instanceof String t
+                && !t.isBlank()) {
+            templateName = t;
+        } else {
+            templateName = "Documento Externo";
+        }
 
         String patientName = doc.getPatient().getFirstName() + " " + doc.getPatient().getLastName();
         String patientDocNumber = doc.getPatient().getDocumentNumber();

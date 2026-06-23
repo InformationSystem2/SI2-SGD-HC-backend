@@ -26,5 +26,7 @@ public record ExternalDocumentRequestDto(
         @NotNull(message = "La fecha de emisión es obligatoria")
         LocalDate issueDate,
 
-        String notes
+        String notes,
+
+        String title
 ) {}
