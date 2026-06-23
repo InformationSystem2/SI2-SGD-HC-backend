@@ -7,6 +7,7 @@ import com.sgd_hc.documents.dto.DocumentResponseDto;
 import com.sgd_hc.documents.entity.Document;
 import com.sgd_hc.documents.entity.DocumentTemplate;
 import com.sgd_hc.patients.entity.Patient;
+import com.sgd_hc.patients.entity.ClinicalHistory;
 import com.sgd_hc.users.entity.User;
 import org.springframework.stereotype.Component;
 
@@ -73,7 +74,9 @@ public class DocumentMapper {
                 userAuthorities.contains("document:read:expiry_date") ? doc.getExpiryDate() : null,
                 userAuthorities.contains("document:read:file_url") ? doc.getFileUrl() : null,
                 userAuthorities.contains("document:read:is_external_source") ? doc.getIsExternalSource() : null,
-                userAuthorities.contains("document:read:version_number") ? doc.getVersionNumber() : null);
+                userAuthorities.contains("document:read:version_number") ? doc.getVersionNumber() : null,
+                doc.getClinicalHistory() != null ? doc.getClinicalHistory().getId() : null,
+                doc.getClinicalHistory() != null ? doc.getClinicalHistory().getCode() : null);
     }
 
     public Map<String, Object> toAuditMap(Document entity) {

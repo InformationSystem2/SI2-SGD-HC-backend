@@ -99,6 +99,26 @@ public interface DocumentRepository extends JpaRepository<Document, UUID> {
             @Param("fechaHasta") String fechaHasta,
             Pageable pageable);
 
+    /**
+     * Asocia a una historia clínica todos los documentos de un paciente que aún
+     * no estén ligados a ninguna (clinical_history_id IS NULL). Se usa al abrir
+     * la historia clínica para vincular retroactivamente los documentos previos.
+     *
+     * @param patientId Paciente cuyos documentos huérfanos se vincularán.
+     * @param historyId Historia clínica destino.
+     * @return Número de documentos actualizados.
+     */
+    @Modifying
+    @Query(value = """
+            UPDATE documents
+            SET clinical_history_id = :historyId
+            WHERE patient_id = :patientId
+              AND clinical_history_id IS NULL
+            """, nativeQuery = true)
+    int linkOrphanDocumentsToClinicalHistory(
+            @Param("patientId") UUID patientId,
+            @Param("historyId") UUID historyId);
+
     @Modifying
     @Query(value = "DELETE FROM documents WHERE tenant_id = :tenantId", nativeQuery = true)
     void deleteAllByTenantId(@Param("tenantId") UUID tenantId);

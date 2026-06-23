@@ -2,6 +2,7 @@
 package com.sgd_hc.documents.entity;
 
 import com.sgd_hc.patients.entity.Patient;
+import com.sgd_hc.patients.entity.ClinicalHistory;
 import com.sgd_hc.users.entity.BaseEntity;
 import com.sgd_hc.users.entity.User;
 import jakarta.persistence.*;
@@ -34,6 +35,12 @@ public class Document extends BaseEntity {
             name = "patient_id", nullable = false,
             foreignKey = @ForeignKey(name = "fk_documents_patient"))
     private Patient patient;
+
+    @ManyToOne(fetch = FetchType.LAZY, optional = true)
+    @JoinColumn(
+            name = "clinical_history_id", nullable = true,
+            foreignKey = @ForeignKey(name = "fk_documents_clinical_history"))
+    private ClinicalHistory clinicalHistory;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "uploader_id", nullable = false,

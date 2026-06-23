@@ -38,5 +38,7 @@ public record DocumentResponseDto(
         LocalDate expiryDate,
         String fileUrl,
         Boolean isExternalSource,
-        Integer versionNumber) {
+        Integer versionNumber,
+        UUID clinicalHistoryId,
+        String clinicalHistoryCode) {
 }

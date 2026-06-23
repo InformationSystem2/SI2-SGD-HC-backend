@@ -17,7 +17,9 @@ import com.sgd_hc.documents.mapper.DocumentMapper;
 import com.sgd_hc.documents.repository.DocumentRepository;
 import com.sgd_hc.documents.repository.DocumentTemplateRepository;
 import com.sgd_hc.patients.entity.Patient;
+import com.sgd_hc.patients.entity.ClinicalHistory;
 import com.sgd_hc.patients.repository.PatientRepository;
+import com.sgd_hc.patients.repository.ClinicalHistoryRepository;
 import com.sgd_hc.security.details.SecurityUser;
 import com.sgd_hc.tenants.entity.Tenant;
 import com.sgd_hc.tenants.service.PlanFeatureValidator;
@@ -63,6 +65,7 @@ public class DocumentService implements AuditableService<UUID, Document> {
     private final DocumentTemplateRepository documentTemplateRepository;
 
     private final PatientRepository             patientRepository;
+    private final ClinicalHistoryRepository     clinicalHistoryRepository;
     private final DocumentMapper                documentMapper;
     private final TenantResolverService         tenantResolverService;
     private final OcrClientService              ocrClientService;
@@ -97,6 +100,7 @@ public class DocumentService implements AuditableService<UUID, Document> {
 
         Document doc = documentMapper.toEntity(dto, patient, currentUser(), template);
         doc.setTenant(tenant);
+        clinicalHistoryRepository.findByPatientId(patient.getId()).ifPresent(doc::setClinicalHistory);
         return documentMapper.toResponseDto(documentRepository.save(doc), authorities);
     }
 
@@ -118,6 +122,7 @@ public class DocumentService implements AuditableService<UUID, Document> {
         Document doc = new Document();
         doc.setTenant(tenant);
         doc.setPatient(patient);
+        clinicalHistoryRepository.findByPatientId(patient.getId()).ifPresent(doc::setClinicalHistory);
         doc.setUploader(currentUser());
         doc.setTemplate(null);
         doc.setFileUrl(dto.fileUrl());
