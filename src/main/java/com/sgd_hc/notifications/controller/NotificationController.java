@@ -3,6 +3,7 @@ package com.sgd_hc.notifications.controller;
 import com.sgd_hc.notifications.dto.NotificationResponseDto;
 import com.sgd_hc.notifications.dto.RegisterPushTokenRequestDto;
 import com.sgd_hc.notifications.service.NotificationService;
+import com.sgd_hc.notifications.entity.NotificationType;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -63,5 +64,15 @@ public class NotificationController {
     public ResponseEntity<Void> deregisterPushToken(@PathVariable String token) {
         notificationService.deregisterPushToken(token);
         return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/test")
+    @PreAuthorize("hasAuthority('notification:read')")
+    public ResponseEntity<Void> sendTestNotification(
+            @RequestParam NotificationType type,
+            @RequestParam String title,
+            @RequestParam String message) {
+        notificationService.sendTestNotification(type, title, message);
+        return ResponseEntity.ok().build();
     }
 }

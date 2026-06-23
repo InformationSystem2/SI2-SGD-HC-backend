@@ -113,6 +113,22 @@ public class NotificationService {
                 Map.of("patientName", patientName));
     }
 
+    @Transactional
+    public void sendTestNotification(NotificationType type, String title, String message) {
+        User user = currentUser();
+        UUID tenantId = tenantResolverService.resolve().getId();
+        create(tenantId, user, type, title, message, null, null);
+        dispatchAdditionalChannels(tenantId, user, type, title, message, null, null, Map.of());
+    }
+
+
+    @Transactional
+    public void sendNotificationToUser(User recipient, NotificationType type, String title, String message) {
+        UUID tenantId = recipient.getTenant() != null ? recipient.getTenant().getId() : tenantResolverService.resolve().getId();
+        create(tenantId, recipient, type, title, message, null, null);
+        dispatchAdditionalChannels(tenantId, recipient, type, title, message, null, null, Map.of());
+    }
+
     // ── Consultas (user-facing) ───────────────────────────────────────────────
 
     @Transactional(readOnly = true)
