@@ -47,8 +47,57 @@ public class PlanLimitValidator {
     private final BackupHistoryRepository backupHistoryRepository;
     private final ReviewTaskRepository reviewTaskRepository;
     private final DocumentVersionRepository documentVersionRepository;
+    private final com.sgd_hc.notifications.repository.NotificationRepository notificationRepository;
+    private final org.springframework.beans.factory.ObjectProvider<com.sgd_hc.notifications.service.NotificationService> notificationServiceProvider;
 
     private static final DateTimeFormatter YEAR_MONTH_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM");
+
+    private void checkAndNotifyLimit(UUID tenantId, String resourceName, long current, long max) {
+        if (max <= 0) return;
+        double usage = (double) current / max;
+        
+        // Determinar el umbral más alto alcanzado
+        double[] thresholds = { 0.60, 0.70, 0.80, 0.85, 0.90, 0.95, 1.00 };
+        double reachedThreshold = 0.0;
+        for (double t : thresholds) {
+            if (usage >= t) {
+                reachedThreshold = t;
+            }
+        }
+
+        if (reachedThreshold > 0.0) {
+            com.sgd_hc.notifications.entity.NotificationType type = com.sgd_hc.notifications.entity.NotificationType.TENANT_STORAGE_LIMIT_ALERT;
+            
+            // Evitar spam: no enviar más de una alerta para el mismo recurso y umbral en las últimas 24 horas
+            int thresholdPercent = (int) (reachedThreshold * 100);
+            String thresholdKeyword = String.format("'%s' ha alcanzado el %d%%", resourceName, thresholdPercent);
+            
+            OffsetDateTime since = OffsetDateTime.now().minusDays(1);
+            boolean alreadyNotified = notificationRepository.existsByTenantIdAndTypeAndMessageContainingAndCreatedAtAfter(
+                    tenantId, type, thresholdKeyword, since);
+            
+            if (!alreadyNotified) {
+                java.util.List<com.sgd_hc.users.entity.User> members = userRepository.findAllByTenantId(tenantId);
+                String severity = reachedThreshold >= 1.0 ? "CRÍTICO" : "ADVERTENCIA";
+                String message = String.format("Alerta de límites: el recurso '%s' ha alcanzado el %d%% de su límite planificado. Estado actual: %d/%d utilizados.", 
+                        resourceName, thresholdPercent, current, max);
+                String title = String.format("Alerta de límite (%s): %s", severity, resourceName);
+                
+                for (com.sgd_hc.users.entity.User user : members) {
+                    boolean isAdmin = user.getRoles().stream().anyMatch(r -> "ROLE_ADMIN".equals(r.getName()));
+                    if (isAdmin) {
+                        try {
+                            notificationServiceProvider.ifAvailable(service -> 
+                                service.sendNotificationToUser(user, type, title, message)
+                            );
+                        } catch (Exception e) {
+                            log.warn("No se pudo enviar la notificación de límite al administrador {}: {}", user.getUsername(), e.getMessage());
+                        }
+                    }
+                }
+            }
+        }
+    }
 
     public void checkUsersLimit(UUID tenantId) {
         String planName = resolvePlanName(tenantId);
@@ -56,6 +105,7 @@ public class PlanLimitValidator {
         if (max == UNLIMITED) return;
 
         long current = userRepository.countByTenantId(tenantId);
+        checkAndNotifyLimit(tenantId, "Usuarios", current + 1, max);
         if (current >= max) {
             throw new PlanLimitExceededException("usuarios", current, max);
         }
@@ -67,6 +117,7 @@ public class PlanLimitValidator {
         if (max == UNLIMITED) return;
 
         long current = patientRepository.countByTenantId(tenantId);
+        checkAndNotifyLimit(tenantId, "Pacientes", current + 1, max);
         if (current >= max) {
             throw new PlanLimitExceededException("pacientes", current, max);
         }
@@ -78,6 +129,7 @@ public class PlanLimitValidator {
         if (max == UNLIMITED) return;
 
         long current = documentRepository.countByTenantId(tenantId);
+        checkAndNotifyLimit(tenantId, "Documentos", current + 1, max);
         if (current >= max) {
             throw new PlanLimitExceededException("documentos", current, max);
         }
@@ -126,7 +178,11 @@ public class PlanLimitValidator {
         long dicomBytes = dicomInstanceRepository.sumFileSizeBytesByTenantId(tenantId);
         long currentBytes = docBytes + dicomBytes;
 
-        if (currentBytes + incomingBytes > maxBytes) {
+        long targetBytes = currentBytes + incomingBytes;
+        long targetMB = targetBytes / (1024L * 1024L);
+        checkAndNotifyLimit(tenantId, "Almacenamiento", targetMB, maxMB);
+
+        if (targetBytes > maxBytes) {
             long currentMB = currentBytes / (1024L * 1024L);
             throw new PlanLimitExceededException("almacenamiento", currentMB, maxMB);
         }
