@@ -522,46 +522,56 @@ public class TenantService implements AuditableService<Object, Tenant> {
             int size,
             String search
     ) {
-        Set<String> authorities = currentAuthorities();
-        var pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
+        TenantContext.setBypassFilter(true);
+        try {
+            Set<String> authorities = currentAuthorities();
+            var pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
 
-        Page<Tenant> tenantPage;
-        boolean hasSearch = search != null && !search.isBlank();
+            Page<Tenant> tenantPage;
+            boolean hasSearch = search != null && !search.isBlank();
 
-        if (hasSearch) {
-            tenantPage = tenantRepository.findAllSearch(search, pageable);
-        } else {
-            tenantPage = tenantRepository.findAll(pageable);
+            if (hasSearch) {
+                tenantPage = tenantRepository.findAllSearch(search, pageable);
+            } else {
+                tenantPage = tenantRepository.findAll(pageable);
+            }
+
+            List<TenantListItemDto> items = tenantPage.getContent().stream()
+                    .map(tenant -> mapToTenantListItemDto(tenant, authorities))
+                    .toList();
+
+            return new PageResponseDto<>(
+                    items,
+                    tenantPage.getNumber(),
+                    tenantPage.getSize(),
+                    tenantPage.getTotalElements(),
+                    tenantPage.getTotalPages(),
+                    tenantPage.isFirst(),
+                    tenantPage.isLast()
+            );
+        } finally {
+            TenantContext.setBypassFilter(false);
         }
-
-        List<TenantListItemDto> items = tenantPage.getContent().stream()
-                .map(tenant -> mapToTenantListItemDto(tenant, authorities))
-                .toList();
-
-        return new PageResponseDto<>(
-                items,
-                tenantPage.getNumber(),
-                tenantPage.getSize(),
-                tenantPage.getTotalElements(),
-                tenantPage.getTotalPages(),
-                tenantPage.isFirst(),
-                tenantPage.isLast()
-        );
     }
 
     @Transactional(readOnly = true)
     public TenantDetailDto getTenantDetails(UUID id) {
-        Set<String> authorities = currentAuthorities();
-        Tenant tenant = findOrThrow(id);
+        TenantContext.setBypassFilter(true);
+        try {
+            Set<String> authorities = currentAuthorities();
+            Tenant tenant = findOrThrow(id);
 
-        AdminInfoDto adminInfo = extractAdminInfo(tenant.getSlug());
+            AdminInfoDto adminInfo = extractAdminInfo(tenant.getSlug());
 
-        int userCount = tenantRepository.countActiveUsersByTenantId(tenant.getId());
-        Map<String, Object> settings = getSettingsFromTenant(tenant);
-        String planName = tenant.getSubscriptionPlan() != null ? tenant.getSubscriptionPlan().name() : "BASIC";
-        Map<String, Long> planLimits = planService.getLimitsForPlan(planName);
+            int userCount = tenantRepository.countActiveUsersByTenantId(tenant.getId());
+            Map<String, Object> settings = getSettingsFromTenant(tenant);
+            String planName = tenant.getSubscriptionPlan() != null ? tenant.getSubscriptionPlan().name() : "BASIC";
+            Map<String, Long> planLimits = planService.getLimitsForPlan(planName);
 
-        return mapToTenantDetailDto(tenant, adminInfo, userCount, settings, planLimits, authorities);
+            return mapToTenantDetailDto(tenant, adminInfo, userCount, settings, planLimits, authorities);
+        } finally {
+            TenantContext.setBypassFilter(false);
+        }
     }
 
     @Transactional

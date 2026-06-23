@@ -53,8 +53,8 @@ public class TenantFilterAspect {
         boolean superUser = isSuperUser();
 
         // 2. Superuser check (system tenant access)
-        if (superUser && systemSlug.equals(tenantSlug)) {
-            log.trace("[TenantFilter] Superusuario detectado en tenant '{}'. Procediendo sin filtro.", systemSlug);
+        if (superUser && systemSlug.equals(tenantSlug) && !TenantContext.isImpersonating()) {
+            log.trace("[TenantFilter] Superusuario detectado en tenant '{}' sin impersonación. Procediendo sin filtro.", systemSlug);
             return joinPoint.proceed();
         }
 

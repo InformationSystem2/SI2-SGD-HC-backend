@@ -6,6 +6,7 @@ public class TenantContext {
     private static final ThreadLocal<UUID> CURRENT_TENANT_ID = new ThreadLocal<>();
     private static final ThreadLocal<String> CURRENT_TENANT_SLUG = new ThreadLocal<>();
     private static final ThreadLocal<Boolean> BYPASS_FILTER = ThreadLocal.withInitial(() -> false);
+    private static final ThreadLocal<Boolean> IS_IMPERSONATING = ThreadLocal.withInitial(() -> false);
 
     public static void setCurrentTenantId(UUID tenantId) {
         CURRENT_TENANT_ID.set(tenantId);
@@ -31,9 +32,18 @@ public class TenantContext {
         return BYPASS_FILTER.get();
     }
 
+    public static void setIsImpersonating(boolean impersonating) {
+        IS_IMPERSONATING.set(impersonating);
+    }
+
+    public static boolean isImpersonating() {
+        return IS_IMPERSONATING.get();
+    }
+
     public static void clear() {
         CURRENT_TENANT_ID.remove();
         CURRENT_TENANT_SLUG.remove();
         BYPASS_FILTER.remove();
+        IS_IMPERSONATING.remove();
     }
 }
