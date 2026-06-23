@@ -90,15 +90,22 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 authToken.setDetails(request);
                 SecurityContextHolder.getContext().setAuthentication(authToken);
 
-                String tenantSlug = jwtService.extractTenantSlug(jwt);
-                if (tenantSlug != null && !tenantSlug.isBlank()) {
-                    TenantContext.setCurrentTenantSlug(tenantSlug);
-                }
-                if (tenantIdStr != null && !tenantIdStr.isBlank()) {
-                    try {
-                        TenantContext.setCurrentTenantId(UUID.fromString(tenantIdStr));
-                    } catch (IllegalArgumentException e) {
-                        logger.error("Tenant ID inválido en JWT: " + tenantIdStr);
+                if (tenantHeader != null && !tenantHeader.isBlank()) {
+                    TenantContext.setCurrentTenantSlug(tenantHeader);
+                    TenantContext.setCurrentTenantId(null);
+                    TenantContext.setIsImpersonating(true);
+                } else {
+                    TenantContext.setIsImpersonating(false);
+                    String tenantSlug = jwtService.extractTenantSlug(jwt);
+                    if (tenantSlug != null && !tenantSlug.isBlank()) {
+                        TenantContext.setCurrentTenantSlug(tenantSlug);
+                    }
+                    if (tenantIdStr != null && !tenantIdStr.isBlank()) {
+                        try {
+                            TenantContext.setCurrentTenantId(UUID.fromString(tenantIdStr));
+                        } catch (IllegalArgumentException e) {
+                            logger.error("Tenant ID inválido en JWT: " + tenantIdStr);
+                        }
                     }
                 }
             }

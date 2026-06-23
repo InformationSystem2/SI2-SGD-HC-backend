@@ -22,6 +22,11 @@ import com.sgd_hc.security.dto.ForgotPasswordRequestDto;
 import com.sgd_hc.security.config.tenant.TenantContext;
 import com.sgd_hc.security.dto.VerifyRecoveryCodeRequestDto;
 
+import com.sgd_hc.security.dto.ProfileResponseDto;
+import com.sgd_hc.security.dto.ProfileUpdateDto;
+import com.sgd_hc.security.dto.PasswordChangeDto;
+import com.sgd_hc.users.entity.DocumentType;
+
 import java.time.Duration;
 import java.util.Random;
 import java.util.Map;
@@ -130,6 +135,96 @@ public class AuthService {
         }
 
         redisTemplate.delete(redisKey);
+
+        return Map.of("message", "Contraseña actualizada exitosamente.");
+    }
+
+    public ProfileResponseDto getProfile(String username) {
+        User user;
+        TenantContext.setBypassFilter(true);
+        try {
+            user = userRepository.findByUsername(username)
+                    .orElseThrow(() -> new UsernameNotFoundException("User not found: " + username));
+        } finally {
+            TenantContext.setBypassFilter(false);
+        }
+        return new ProfileResponseDto(
+                user.getId(),
+                user.getUsername(),
+                user.getEmail(),
+                user.getFirstName(),
+                user.getLastName(),
+                user.getPhone(),
+                user.getDocumentType() != null ? user.getDocumentType().name() : null,
+                user.getDocumentNumber(),
+                user.getGender()
+        );
+    }
+
+    public ProfileResponseDto updateProfile(String username, ProfileUpdateDto dto) {
+        User user;
+        TenantContext.setBypassFilter(true);
+        try {
+            user = userRepository.findByUsername(username)
+                    .orElseThrow(() -> new UsernameNotFoundException("User not found: " + username));
+        } finally {
+            TenantContext.setBypassFilter(false);
+        }
+
+        if (!user.getEmail().equalsIgnoreCase(dto.email())) {
+            boolean emailExists;
+            TenantContext.setBypassFilter(true);
+            try {
+                emailExists = userRepository.existsByEmail(dto.email());
+            } finally {
+                TenantContext.setBypassFilter(false);
+            }
+            if (emailExists) {
+                throw new IllegalArgumentException("El correo electrónico ya está en uso.");
+            }
+        }
+
+        user.setFirstName(dto.firstName());
+        user.setLastName(dto.lastName());
+        user.setEmail(dto.email());
+        user.setPhone(dto.phone());
+        user.setGender(dto.gender());
+        if (dto.documentType() != null) {
+            user.setDocumentType(DocumentType.valueOf(dto.documentType()));
+        }
+        user.setDocumentNumber(dto.documentNumber());
+
+        userRepository.save(user);
+
+        return new ProfileResponseDto(
+                user.getId(),
+                user.getUsername(),
+                user.getEmail(),
+                user.getFirstName(),
+                user.getLastName(),
+                user.getPhone(),
+                user.getDocumentType() != null ? user.getDocumentType().name() : null,
+                user.getDocumentNumber(),
+                user.getGender()
+        );
+    }
+
+    public Map<String, String> changePassword(String username, PasswordChangeDto dto) {
+        User user;
+        TenantContext.setBypassFilter(true);
+        try {
+            user = userRepository.findByUsername(username)
+                    .orElseThrow(() -> new UsernameNotFoundException("User not found: " + username));
+        } finally {
+            TenantContext.setBypassFilter(false);
+        }
+
+        if (!passwordEncoder.matches(dto.currentPassword(), user.getPassword())) {
+            throw new IllegalArgumentException("La contraseña actual es incorrecta.");
+        }
+
+        user.setPassword(passwordEncoder.encode(dto.newPassword()));
+        userRepository.save(user);
 
         return Map.of("message", "Contraseña actualizada exitosamente.");
     }

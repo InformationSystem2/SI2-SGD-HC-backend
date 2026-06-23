@@ -16,11 +16,15 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.GrantedAuthority;
 import java.util.Collection;
 import java.util.Map;
+import com.sgd_hc.security.dto.ProfileResponseDto;
+import com.sgd_hc.security.dto.ProfileUpdateDto;
+import com.sgd_hc.security.dto.PasswordChangeDto;
 
 @RestController
 @RequestMapping("/api/auth")
@@ -60,5 +64,33 @@ public class AuthController {
                 .map(GrantedAuthority::getAuthority)
                 .toList();
         return ResponseEntity.ok(authorities);
+    }
+
+    @GetMapping("/profile")
+    public ResponseEntity<ProfileResponseDto> getProfile(@AuthenticationPrincipal UserDetails userDetails) {
+        if (userDetails == null) {
+            return ResponseEntity.status(401).build();
+        }
+        return ResponseEntity.ok(authService.getProfile(userDetails.getUsername()));
+    }
+
+    @PutMapping("/profile")
+    public ResponseEntity<ProfileResponseDto> updateProfile(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @Valid @RequestBody ProfileUpdateDto request) {
+        if (userDetails == null) {
+            return ResponseEntity.status(401).build();
+        }
+        return ResponseEntity.ok(authService.updateProfile(userDetails.getUsername(), request));
+    }
+
+    @PutMapping("/profile/password")
+    public ResponseEntity<Map<String, String>> changePassword(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @Valid @RequestBody PasswordChangeDto request) {
+        if (userDetails == null) {
+            return ResponseEntity.status(401).build();
+        }
+        return ResponseEntity.ok(authService.changePassword(userDetails.getUsername(), request));
     }
 }
