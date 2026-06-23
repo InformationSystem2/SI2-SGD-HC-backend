@@ -140,7 +140,7 @@ ONLYOFFICE_JWT_SECRET=<mima_jwt>
 
 ## Endpoints principales
 
-### Autenticación
+### Autenticación y Perfil
 
 | Método | Ruta | Descripción |
 |---|---|---|
@@ -148,6 +148,9 @@ ONLYOFFICE_JWT_SECRET=<mima_jwt>
 | `POST` | `/api/auth/refresh` | Renovación de access token |
 | `POST` | `/api/auth/forgot-password` | Solicitud de recuperación de contraseña |
 | `POST` | `/api/auth/reset-password` | Restablecimiento con código de verificación |
+| `GET` | `/api/auth/profile` | Ver datos del perfil del usuario autenticado |
+| `PUT` | `/api/auth/profile` | Actualizar datos personales del perfil |
+| `PUT` | `/api/auth/profile/password` | Cambiar contraseña del usuario autenticado |
 
 ### Tenants (Clínicas)
 
@@ -201,6 +204,11 @@ Cada tabla tiene columna `tenant_id`. El aspecto AOP `TenantFilterAspect` extrae
 
 ### Seeding de plantillas
 Las plantillas por defecto se siembran automáticamente al registrar una nueva clínica mediante `TemplateDataSeeder`, inyectado en `TenantService.createTenantWithAdmin()`. Para datos de prueba adicionales (pacientes, clínicas extra) se usa el script Python `sgd_fastapi/seed_db.py`.
+
+### Monitoreo de Límites de Recursos (Planes)
+El validador `PlanLimitValidator` supervisa de forma reactiva el consumo de recursos contratados (Pacientes, Usuarios, Documentos, Almacenamiento, Roles, Estudios DICOM). 
+- Genera notificaciones automáticas dirigidas a administradores cuando el uso excede el **60%, 70%, 80%, 85%, 90%, 95% o 100%** de los límites asignados al plan.
+- Implementa un control de duplicación temporal para evitar el envío repetido de alertas del mismo umbral en un rango de 24 horas.
 
 ---
 
