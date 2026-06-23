@@ -37,7 +37,7 @@ public class BackupService implements AuditableService<String, File> {
     private final TenantRepository tenantRepository;
 
     private final boolean isWindows = System.getProperty("os.name").toLowerCase().startsWith("windows");
-    private final String BACKUP_DIR = "backups";
+    private final String BACKUP_DIR = "true".equals(System.getenv("RUNNING_IN_DOCKER")) ? "/backups" : "backups";
 
     @Auditable(resourceType = "BACKUP_FULL", actionType = ActionType.CREATE)
     public File generateFullBackup() {
