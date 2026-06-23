@@ -25,7 +25,7 @@ WORKDIR /app
 RUN addgroup -S spring && adduser -S spring -G spring
 
 # Instalar dependencias para scripts de backup
-RUN apk add --no-cache postgresql-client bash
+RUN apk add --no-cache postgresql-client bash curl
 
 # Copiar scripts
 COPY --chown=spring:spring scripts/ /app/scripts/

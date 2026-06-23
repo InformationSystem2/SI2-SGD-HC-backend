@@ -120,6 +120,67 @@ BEGIN;
                 Add-Content -Path $TenantFile -Value "\."
             }
         }
+
+        $joinTables = @(
+            @{ Table="role_user"; Where="user_id IN (SELECT id FROM users WHERE tenant_id = '$tenant_id')" },
+            @{ Table="document_ocr_metadata"; Where="document_id IN (SELECT id FROM documents WHERE tenant_id = '$tenant_id')" }
+        )
+        foreach ($jt in $joinTables) {
+            $cols = & psql -h $DB_HOST -p $DB_PORT -U $DB_USERNAME -d $DB_NAME --no-psqlrc -t -A -c "SELECT string_agg(column_name, ', ' ORDER BY ordinal_position) FROM information_schema.columns WHERE table_schema = 'public' AND table_name = '$($jt.Table)'"
+            if ($cols) {
+                Add-Content -Path $TenantFile -Value "COPY $($jt.Table) ($cols) FROM stdin;"
+                & psql -h $DB_HOST -p $DB_PORT -U $DB_USERNAME -d $DB_NAME --no-psqlrc -q -c "COPY (SELECT * FROM $($jt.Table) WHERE $($jt.Where)) TO STDOUT" | Add-Content -Path $TenantFile
+                Add-Content -Path $TenantFile -Value "\."
+            }
+        }
+
+        $newTenantTables = @(
+            @{ Table="document_versions"; Where="tenant_id = '$tenant_id'" },
+            @{ Table="clinical_histories"; Where="tenant_id = '$tenant_id'" },
+            @{ Table="workflows"; Where="tenant_id = '$tenant_id'" },
+            @{ Table="review_tasks"; Where="tenant_id = '$tenant_id'" },
+            @{ Table="workflow_events"; Where="tenant_id = '$tenant_id'" },
+            @{ Table="workflow_comments"; Where="tenant_id = '$tenant_id'" },
+            @{ Table="task_delegations"; Where="tenant_id = '$tenant_id'" },
+            @{ Table="notifications"; Where="tenant_id = '$tenant_id'" },
+            @{ Table="api_call_usage"; Where="tenant_id = '$tenant_id'" },
+            @{ Table="backup_history"; Where="tenant_id = '$tenant_id'" }
+        )
+        foreach ($nt in $newTenantTables) {
+            $cols = & psql -h $DB_HOST -p $DB_PORT -U $DB_USERNAME -d $DB_NAME --no-psqlrc -t -A -c "SELECT string_agg(column_name, ', ' ORDER BY ordinal_position) FROM information_schema.columns WHERE table_schema = 'public' AND table_name = '$($nt.Table)'"
+            if ($cols) {
+                Add-Content -Path $TenantFile -Value "COPY $($nt.Table) ($cols) FROM stdin;"
+                & psql -h $DB_HOST -p $DB_PORT -U $DB_USERNAME -d $DB_NAME --no-psqlrc -q -c "COPY (SELECT * FROM $($nt.Table) WHERE $($nt.Where)) TO STDOUT" | Add-Content -Path $TenantFile
+                Add-Content -Path $TenantFile -Value "\."
+            }
+        }
+
+        $newJoinTables = @(
+            @{ Table="workflow_documents"; Where="workflow_id IN (SELECT id FROM workflows WHERE tenant_id = '$tenant_id')" },
+            @{ Table="user_push_tokens"; Where="user_id IN (SELECT id FROM users WHERE tenant_id = '$tenant_id')" },
+            @{ Table="role_permission"; Where="role_id IN (SELECT id FROM roles WHERE tenant_id = '$tenant_id')" },
+            @{ Table="plan_limits"; Where="plan_id IN (SELECT id FROM plans)" },
+            @{ Table="plan_features"; Where="plan_id IN (SELECT id FROM plans)" }
+        )
+        foreach ($jt in $newJoinTables) {
+            $cols = & psql -h $DB_HOST -p $DB_PORT -U $DB_USERNAME -d $DB_NAME --no-psqlrc -t -A -c "SELECT string_agg(column_name, ', ' ORDER BY ordinal_position) FROM information_schema.columns WHERE table_schema = 'public' AND table_name = '$($jt.Table)'"
+            if ($cols) {
+                Add-Content -Path $TenantFile -Value "COPY $($jt.Table) ($cols) FROM stdin;"
+                & psql -h $DB_HOST -p $DB_PORT -U $DB_USERNAME -d $DB_NAME --no-psqlrc -q -c "COPY (SELECT * FROM $($jt.Table) WHERE $($jt.Where)) TO STDOUT" | Add-Content -Path $TenantFile
+                Add-Content -Path $TenantFile -Value "\."
+            }
+        }
+
+        $globalTables = @("permissions","plans")
+        foreach ($gt in $globalTables) {
+            $cols = & psql -h $DB_HOST -p $DB_PORT -U $DB_USERNAME -d $DB_NAME --no-psqlrc -t -A -c "SELECT string_agg(column_name, ', ' ORDER BY ordinal_position) FROM information_schema.columns WHERE table_schema = 'public' AND table_name = '$gt'"
+            if ($cols) {
+                Add-Content -Path $TenantFile -Value "COPY $gt ($cols) FROM stdin;"
+                & psql -h $DB_HOST -p $DB_PORT -U $DB_USERNAME -d $DB_NAME --no-psqlrc -q -c "COPY (SELECT * FROM $gt) TO STDOUT" | Add-Content -Path $TenantFile
+                Add-Content -Path $TenantFile -Value "\."
+            }
+        }
+
         Add-Content -Path $TenantFile -Value "COMMIT;"
         Log-Message "  ✓ tenant '$slug' completado"
     }

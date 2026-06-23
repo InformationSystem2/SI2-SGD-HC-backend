@@ -156,6 +156,26 @@ HEADER
         dump_table_tenant "role_user" "user_id IN (SELECT id FROM users WHERE tenant_id = '$tenant_id')" "$TENANT_FILE"
         dump_table_tenant "document_ocr_metadata" "document_id IN (SELECT id FROM documents WHERE tenant_id = '$tenant_id')" "$TENANT_FILE"
 
+        dump_table_tenant "document_versions" "tenant_id = '$tenant_id'" "$TENANT_FILE"
+        dump_table_tenant "clinical_histories" "tenant_id = '$tenant_id'" "$TENANT_FILE"
+        dump_table_tenant "workflows" "tenant_id = '$tenant_id'" "$TENANT_FILE"
+        dump_table_tenant "review_tasks" "tenant_id = '$tenant_id'" "$TENANT_FILE"
+        dump_table_tenant "workflow_events" "tenant_id = '$tenant_id'" "$TENANT_FILE"
+        dump_table_tenant "workflow_comments" "tenant_id = '$tenant_id'" "$TENANT_FILE"
+        dump_table_tenant "task_delegations" "tenant_id = '$tenant_id'" "$TENANT_FILE"
+        dump_table_tenant "notifications" "tenant_id = '$tenant_id'" "$TENANT_FILE"
+        dump_table_tenant "api_call_usage" "tenant_id = '$tenant_id'" "$TENANT_FILE"
+        dump_table_tenant "backup_history" "tenant_id = '$tenant_id'" "$TENANT_FILE"
+
+        dump_table_tenant "workflow_documents" "workflow_id IN (SELECT id FROM workflows WHERE tenant_id = '$tenant_id')" "$TENANT_FILE"
+        dump_table_tenant "user_push_tokens" "user_id IN (SELECT id FROM users WHERE tenant_id = '$tenant_id')" "$TENANT_FILE"
+
+        dump_table_tenant "permissions" "true" "$TENANT_FILE"
+        dump_table_tenant "role_permission" "role_id IN (SELECT id FROM roles WHERE tenant_id = '$tenant_id')" "$TENANT_FILE"
+        dump_table_tenant "plans" "true" "$TENANT_FILE"
+        dump_table_tenant "plan_limits" "plan_id IN (SELECT id FROM plans)" "$TENANT_FILE"
+        dump_table_tenant "plan_features" "plan_id IN (SELECT id FROM plans)" "$TENANT_FILE"
+
         echo "COMMIT;" >> "$TENANT_FILE"
         log "  ✓ tenant '$slug' completado"
     done <<< "$TENANTS"
@@ -216,6 +236,91 @@ if [ -n "${GCS_BUCKET_NAME:-}" ]; then
             log "  ✓ Subida GCS $nombre_blob: HTTP $HTTP_CODE"
         done
     fi
+fi
+
+if [ -n "${AZURE_STORAGE_SAS_URL:-}" ] && [ -n "${GCS_BUCKET_NAME:-}" ] && [ -n "${GCP_TOKEN:-}" ]; then
+    log "--- ARCHIVOS: Sincronizando Azure Blob → GCS ---"
+    
+    FILE_BACKUP_DIR="$BACKUP_DIR/files_${DATE}"
+    mkdir -p "$FILE_BACKUP_DIR"
+    
+    azure_base="${AZURE_STORAGE_SAS_URL%%\?*}"
+    azure_sas="${AZURE_STORAGE_SAS_URL#*\?}"
+    container_url="${azure_base%%/*}"
+    account_and_container="${azure_base#https://}"
+    container_name="${account_and_container#*.}"
+    container_name="${container_name%%.*}"
+    
+    LIST_URL="${azure_base}?restype=container&comp=list&${azure_sas}"
+    BLOB_LIST=$(curl -s "$LIST_URL" 2>> "$LOG_FILE")
+    
+    if echo "$BLOB_LIST" | grep -q "<Blob>"; then
+        BLOBS=$(echo "$BLOB_LIST" | grep -o '<Name>[^<]*</Name>' | sed 's/<[^>]*>//g')
+        TOTAL_BLOBS=$(echo "$BLOBS" | wc -l)
+        log "  Blobs encontrados en Azure: $TOTAL_BLOBS"
+        
+        DOWNLOADED=0
+        FAILED=0
+        
+        while IFS= read -r blob_name; do
+            [ -z "$blob_name" ] && continue
+            
+            local_file="$FILE_BACKUP_DIR/$blob_name"
+            mkdir -p "$(dirname "$local_file")"
+            
+            HTTP_CODE=$(curl -s -o "$local_file" -w "%{http_code}" \
+                "${azure_base}/${blob_name}?${azure_sas}" 2>> "$LOG_FILE")
+            
+            if [ "$HTTP_CODE" = "200" ] && [ -s "$local_file" ]; then
+                DOWNLOADED=$((DOWNLOADED + 1))
+                
+                GCS_PATH="uploads/${DATE}/${blob_name}"
+                UPLOAD_HTTP=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
+                    --data-binary @"$local_file" \
+                    -H "Authorization: Bearer $GCP_TOKEN" \
+                    -H "Content-Type: application/octet-stream" \
+                    "https://storage.googleapis.com/upload/storage/v1/b/${GCS_BUCKET_NAME}/o?uploadType=media&name=${GCS_PATH}" 2>> "$LOG_FILE")
+                
+                if [ "$UPLOAD_HTTP" != "200" ]; then
+                    log "  WARN: Falló subida GCS para $blob_name (HTTP $UPLOAD_HTTP)"
+                    FAILED=$((FAILED + 1))
+                fi
+                
+                rm -f "$local_file"
+            else
+                log "  WARN: Falló descarga de $blob_name (HTTP $HTTP_CODE)"
+                FAILED=$((FAILED + 1))
+                rm -f "$local_file"
+            fi
+        done <<< "$BLOBS"
+        
+        rmdir "$FILE_BACKUP_DIR" 2>/dev/null || true
+        log "  ✓ Archivos sincronizados: $DOWNLOADED OK, $FAILED fallidos"
+    else
+        log "  WARN: No se pudieron listar blobs de Azure o container vacío"
+        rmdir "$FILE_BACKUP_DIR" 2>/dev/null || true
+    fi
+fi
+
+if [ -n "${AZURE_STORAGE_SAS_URL:-}" ] && { [ -z "${GCS_BUCKET_NAME:-}" ] || [ -z "${GCP_TOKEN:-}" ]; }; then
+    log "--- ARCHIVOS: Subiendo archivos a Azure (backup local) ---"
+    
+    FILE_BACKUP_DIR="$BACKUP_DIR/files_${DATE}"
+    mkdir -p "$FILE_BACKUP_DIR"
+    
+    azure_base="${AZURE_STORAGE_SAS_URL%%\?*}"
+    azure_sas="${AZURE_STORAGE_SAS_URL#*\?}"
+    
+    LIST_URL="${azure_base}?restype=container&comp=list&${azure_sas}"
+    BLOB_LIST=$(curl -s "$LIST_URL" 2>> "$LOG_FILE")
+    
+    if echo "$BLOB_LIST" | grep -q "<Blob>"; then
+        BLOBS=$(echo "$BLOB_LIST" | grep -o '<Name>[^<]*</Name>' | sed 's/<[^>]*>//g')
+        TOTAL_BLOBS=$(echo "$BLOBS" | wc -l)
+        log "  Blobs encontrados en Azure: $TOTAL_BLOBS (sin GCS, se omiten)"
+    fi
+    
+    rmdir "$FILE_BACKUP_DIR" 2>/dev/null || true
 fi
 
 log "Backup finalizado"

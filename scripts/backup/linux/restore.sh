@@ -112,18 +112,50 @@ if [ "$MODE" = "tenant" ]; then
 
     cat > "$TEMP_SQL" << SQL
 BEGIN;
+
+-- ── Drops de triggers que bloquean DELETE en document_versions ──
+DROP TRIGGER IF EXISTS trg_document_versions_no_delete ON document_versions;
+DROP TRIGGER IF EXISTS trg_document_versions_no_update ON document_versions;
+
+-- ── DELETE en orden inverso de dependencias FK ──
+
+-- Workflows (hijos primero)
+DELETE FROM workflow_events    WHERE tenant_id = '$TENANT_ID';
+DELETE FROM workflow_comments  WHERE tenant_id = '$TENANT_ID';
+DELETE FROM workflow_documents WHERE workflow_id IN (SELECT id FROM workflows WHERE tenant_id = '$TENANT_ID');
+DELETE FROM review_tasks       WHERE tenant_id = '$TENANT_ID';
+DELETE FROM workflows          WHERE tenant_id = '$TENANT_ID';
+
+-- Documents y versiones
 DELETE FROM document_ocr_metadata WHERE document_id IN (SELECT id FROM documents WHERE tenant_id = '$TENANT_ID');
-DELETE FROM role_user WHERE user_id IN (SELECT id FROM users WHERE tenant_id = '$TENANT_ID');
+DELETE FROM document_versions  WHERE tenant_id = '$TENANT_ID';
+DELETE FROM documents           WHERE tenant_id = '$TENANT_ID';
+DELETE FROM document_templates  WHERE tenant_id = '$TENANT_ID';
+DELETE FROM report_templates    WHERE tenant_id = '$TENANT_ID';
+
+-- DICOM
 DELETE FROM dicom_instances WHERE tenant_id = '$TENANT_ID';
 DELETE FROM dicom_series    WHERE tenant_id = '$TENANT_ID';
 DELETE FROM dicom_studies   WHERE tenant_id = '$TENANT_ID';
-DELETE FROM documents          WHERE tenant_id = '$TENANT_ID';
-DELETE FROM document_templates WHERE tenant_id = '$TENANT_ID';
-DELETE FROM report_templates   WHERE tenant_id = '$TENANT_ID';
-DELETE FROM patients WHERE tenant_id = '$TENANT_ID';
-DELETE FROM users    WHERE tenant_id = '$TENANT_ID';
-DELETE FROM roles    WHERE tenant_id = '$TENANT_ID';
-DELETE FROM tenants  WHERE id = '$TENANT_ID';
+
+-- Clinical
+DELETE FROM clinical_histories WHERE tenant_id = '$TENANT_ID';
+
+-- Users y roles
+DELETE FROM notifications     WHERE tenant_id = '$TENANT_ID';
+DELETE FROM task_delegations  WHERE tenant_id = '$TENANT_ID';
+DELETE FROM backup_history    WHERE tenant_id = '$TENANT_ID';
+DELETE FROM api_call_usage    WHERE tenant_id = '$TENANT_ID';
+DELETE FROM user_push_tokens  WHERE user_id IN (SELECT id FROM users WHERE tenant_id = '$TENANT_ID');
+DELETE FROM role_user         WHERE user_id IN (SELECT id FROM users WHERE tenant_id = '$TENANT_ID');
+DELETE FROM role_permission   WHERE role_id IN (SELECT id FROM roles WHERE tenant_id = '$TENANT_ID');
+DELETE FROM patients          WHERE tenant_id = '$TENANT_ID';
+DELETE FROM users             WHERE tenant_id = '$TENANT_ID';
+DELETE FROM roles             WHERE tenant_id = '$TENANT_ID';
+
+-- Parent
+DELETE FROM tenants WHERE id = '$TENANT_ID';
+
 COMMIT;
 SQL
 

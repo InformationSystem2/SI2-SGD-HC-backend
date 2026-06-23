@@ -79,18 +79,48 @@ elseif ($Mode -eq "-tenant") {
     $TempSql = [System.IO.Path]::GetTempFileName()
     @"
 BEGIN;
+
+-- Drops de triggers que bloquean DELETE en document_versions
+DROP TRIGGER IF EXISTS trg_document_versions_no_delete ON document_versions;
+DROP TRIGGER IF EXISTS trg_document_versions_no_update ON document_versions;
+
+-- Workflows (hijos primero)
+DELETE FROM workflow_events    WHERE tenant_id = '$TenantId';
+DELETE FROM workflow_comments  WHERE tenant_id = '$TenantId';
+DELETE FROM workflow_documents WHERE workflow_id IN (SELECT id FROM workflows WHERE tenant_id = '$TenantId');
+DELETE FROM review_tasks       WHERE tenant_id = '$TenantId';
+DELETE FROM workflows          WHERE tenant_id = '$TenantId';
+
+-- Documents y versiones
 DELETE FROM document_ocr_metadata WHERE document_id IN (SELECT id FROM documents WHERE tenant_id = '$TenantId');
-DELETE FROM role_user WHERE user_id IN (SELECT id FROM users WHERE tenant_id = '$TenantId');
+DELETE FROM document_versions  WHERE tenant_id = '$TenantId';
+DELETE FROM documents           WHERE tenant_id = '$TenantId';
+DELETE FROM document_templates  WHERE tenant_id = '$TenantId';
+DELETE FROM report_templates    WHERE tenant_id = '$TenantId';
+
+-- DICOM
 DELETE FROM dicom_instances WHERE tenant_id = '$TenantId';
 DELETE FROM dicom_series    WHERE tenant_id = '$TenantId';
 DELETE FROM dicom_studies   WHERE tenant_id = '$TenantId';
-DELETE FROM documents          WHERE tenant_id = '$TenantId';
-DELETE FROM document_templates WHERE tenant_id = '$TenantId';
-DELETE FROM report_templates   WHERE tenant_id = '$TenantId';
-DELETE FROM patients WHERE tenant_id = '$TenantId';
-DELETE FROM users    WHERE tenant_id = '$TenantId';
-DELETE FROM roles    WHERE tenant_id = '$TenantId';
-DELETE FROM tenants  WHERE id = '$TenantId';
+
+-- Clinical
+DELETE FROM clinical_histories WHERE tenant_id = '$TenantId';
+
+-- Users y roles
+DELETE FROM notifications     WHERE tenant_id = '$TenantId';
+DELETE FROM task_delegations  WHERE tenant_id = '$TenantId';
+DELETE FROM backup_history    WHERE tenant_id = '$TenantId';
+DELETE FROM api_call_usage    WHERE tenant_id = '$TenantId';
+DELETE FROM user_push_tokens  WHERE user_id IN (SELECT id FROM users WHERE tenant_id = '$TenantId');
+DELETE FROM role_user         WHERE user_id IN (SELECT id FROM users WHERE tenant_id = '$TenantId');
+DELETE FROM role_permission   WHERE role_id IN (SELECT id FROM roles WHERE tenant_id = '$TenantId');
+DELETE FROM patients          WHERE tenant_id = '$TenantId';
+DELETE FROM users             WHERE tenant_id = '$TenantId';
+DELETE FROM roles             WHERE tenant_id = '$TenantId';
+
+-- Parent
+DELETE FROM tenants WHERE id = '$TenantId';
+
 COMMIT;
 "@ | Set-Content -Path $TempSql
     
