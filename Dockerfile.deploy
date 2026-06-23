@@ -37,6 +37,8 @@ COPY --from=layers --chown=spring:spring /extract/spring-boot-loader/ ./
 COPY --from=layers --chown=spring:spring /extract/snapshot-dependencies/ ./
 COPY --from=layers --chown=spring:spring /extract/application/ ./
 
+RUN mkdir -p /backups/logs && chown -R spring:spring /backups
+
 USER spring
 
 # Configuración de memoria adaptada para Cloud Run
