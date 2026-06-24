@@ -372,6 +372,23 @@ public class DocumentService implements AuditableService<UUID, Document> {
         }
     }
 
+    @Transactional
+    @Auditable(resourceType = "DOCUMENT_OCR", actionType = ActionType.CREATE, idParamName = "documentId")
+    public OcrResultDto saveOcrResult(UUID documentId, OcrResultDto result) {
+        Document doc = findOrThrow(documentId);
+        DocumentOcrMetadata meta = ocrMetadataRepository
+                .findByDocumentId(documentId)
+                .orElse(DocumentOcrMetadata.builder().document(doc).build());
+        meta.setRawText(result.rawText());
+        meta.setDatosEstructurados(result.structuredData());
+        meta.setConfidenceScore(result.confidenceScore());
+        meta.setPagesProcessed(result.pagesProcessed());
+        meta.setFileType(result.fileType());
+        meta.setCreatedAt(LocalDateTime.now());
+        ocrMetadataRepository.save(meta);
+        return result;
+    }
+
     @Transactional(readOnly = true)
     @Auditable(resourceType = "DOCUMENT_OCR", actionType = ActionType.READ, idParamName = "documentId")
     public OcrResultDto getOcrResult(UUID documentId) {
