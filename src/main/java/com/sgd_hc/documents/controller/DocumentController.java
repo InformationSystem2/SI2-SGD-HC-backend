@@ -130,6 +130,14 @@ public class DocumentController {
     public ResponseEntity<OcrResultDto> getOcr(@PathVariable UUID id) {
         return ResponseEntity.ok(documentService.getOcrResult(id));
     }
+
+    @PostMapping("/{id}/ocr/result")
+    @PreAuthorize("hasAuthority('document_ocr:create')")
+    public ResponseEntity<OcrResultDto> saveOcrResult(
+            @PathVariable UUID id,
+            @RequestBody OcrResultDto result) {
+        return ResponseEntity.ok(documentService.saveOcrResult(id, result));
+    }
     /*
     @GetMapping("/api/records/search")
     public ResponseEntity<Page<DocumentResponseDto>> searchHistory(
